@@ -1,6 +1,0 @@
-{
-  "name": "Ruang Obrolan Pribadi Soe & Haru",
-  "description": "Aplikasi obrolan pribadi khusus mobile untuk Soe & Haru dengan tema dark mode, perlindungan anti-screenshot, foto sekali lihat, dan status online real-time.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
