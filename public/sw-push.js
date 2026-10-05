@@ -8,7 +8,7 @@ self.addEventListener('push', function (event) {
       const data = event.data.json();
       if (data.sender) {
         title = data.sender;
-        body = `${data.sender} mengirim kamu pesan`;
+        body = 'Mengirim kamu pesan.';
       } else if (data.body) {
         body = data.body;
       }
