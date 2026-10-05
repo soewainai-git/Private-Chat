@@ -2,7 +2,7 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>Pesan</title>
     <meta name="description" content="Aplikasi obrolan pribadi khusus mobile dengan tema dark mode, perlindungan anti-screenshot, foto sekali lihat, dan status online real-time." />
     <meta property="og:title" content="Pesan" />
@@ -25,8 +25,13 @@
           visibility: hidden !important;
         }
       }
-      /* Prevent select and callout across app */
-      body {
+      /* Prevent select, rubber-banding, and unwanted viewport bouncing */
+      html, body {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        overscroll-behavior: none;
         -webkit-touch-callout: none;
         -webkit-user-select: none;
         user-select: none;
@@ -34,6 +39,10 @@
         color: #e2e8f0;
         margin: 0;
         padding: 0;
+      }
+      #root {
+        width: 100%;
+        height: 100%;
         overflow: hidden;
       }
     </style>
@@ -43,4 +52,3 @@
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-
