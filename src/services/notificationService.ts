@@ -27,7 +27,7 @@ export function showPartnerNotification(sender: UserIdentity) {
 
   const title = sender;
   const options: any = {
-    body: `${sender} mengirim kamu pesan`,
+    body: 'Mengirim kamu pesan.',
     icon: './pwa-192x192.png',
     badge: './icon.svg',
     tag: 'private-chat-notification',
@@ -36,15 +36,19 @@ export function showPartnerNotification(sender: UserIdentity) {
   };
 
   try {
-    // If Service Worker registration is ready, prefer showNotification (handles background cleanly)
-    if ('serviceWorker' in navigator && navigator.serviceWorker.ready) {
-      navigator.serviceWorker.ready
-        .then(registration => {
+    // If Service Worker registration is ready, prefer showNotification (PWA native style)
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.getRegistration().then(registration => {
+        if (registration) {
           registration.showNotification(title, options);
-        })
-        .catch(() => {
+        } else if (navigator.serviceWorker.ready) {
+          navigator.serviceWorker.ready.then(reg => reg.showNotification(title, options));
+        } else {
           new Notification(title, options);
-        });
+        }
+      }).catch(() => {
+        new Notification(title, options);
+      });
     } else {
       new Notification(title, options);
     }
