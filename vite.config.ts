@@ -12,7 +12,10 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['icon.svg', 'apple-touch-icon.png'],
+        includeAssets: ['icon.svg', 'apple-touch-icon.png', 'sw-push.js'],
+        workbox: {
+          importScripts: ['./sw-push.js'],
+        },
         manifest: {
           id: './',
           name: 'Pesan',
