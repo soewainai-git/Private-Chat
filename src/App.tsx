@@ -31,7 +31,7 @@ export default function App() {
 
   return (
     <DesktopGuard>
-      <div className="w-full h-dvh bg-[#0b0f17] text-slate-100 flex flex-col overflow-hidden relative select-none">
+      <div className="fixed inset-0 w-full h-[100dvh] max-h-[100dvh] bg-[#0b0f17] text-slate-100 flex flex-col overflow-hidden select-none">
         {/* Anti-Screenshot Privacy Overlay */}
         <PrivacyShieldOverlay
           isVeiled={isVeiled}
