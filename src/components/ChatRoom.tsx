@@ -5,7 +5,8 @@ import {
   X,
   Shield,
   ArrowLeft,
-  CheckCheck
+  CheckCheck,
+  Bell
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
@@ -19,6 +20,11 @@ import {
   broadcastTyping,
   clearAllMessages
 } from '../services/chatService';
+import {
+  getNotificationPermission,
+  requestNotificationPermission,
+  showPartnerNotification
+} from '../services/notificationService';
 import { ViewOnceModal } from './ViewOnceModal';
 
 interface Props {
@@ -42,6 +48,7 @@ export const ChatRoom: React.FC<Props> = ({
   const [partnerIsOnline, setPartnerIsOnline] = useState<boolean>(false);
   const [partnerTyping, setPartnerTyping] = useState<boolean>(false);
   const [showSecurityInfo, setShowSecurityInfo] = useState<boolean>(false);
+  const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() => getNotificationPermission());
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -99,6 +106,13 @@ export const ChatRoom: React.FC<Props> = ({
     // Subscribe to live events with robust deduplication
     const unsubscribe = subscribeToChatEvents(
       (newMsg) => {
+        // Trigger notification if app is in background/locked and message is from partner
+        if (newMsg.name === partnerName) {
+          if (typeof document !== 'undefined' && (document.hidden || !document.hasFocus())) {
+            showPartnerNotification(partnerName);
+          }
+        }
+
         setMessages(prev => {
           // Check if already in list by ID
           if (prev.some(m => m.id === newMsg.id)) return prev;
@@ -218,8 +232,8 @@ export const ChatRoom: React.FC<Props> = ({
 
   return (
     <div className="flex-1 w-full h-full flex flex-col bg-[#0b0f17] text-slate-100 select-none overflow-hidden relative">
-      {/* Compact Top Header */}
-      <header className="flex-none h-13 bg-[#0f141f] border-b border-slate-800/80 px-3 flex items-center justify-between z-20 shadow-sm">
+      {/* Compact Top Header - Fixed & Locked */}
+      <header className="flex-none h-13 bg-[#0f141f] border-b border-slate-800/80 px-3 flex items-center justify-between z-30 shadow-sm sticky top-0">
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={onLock}
@@ -268,7 +282,29 @@ export const ChatRoom: React.FC<Props> = ({
         </div>
 
         {/* Right Header Actions - Clean & Minimalist */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={async () => {
+              if (notifPermission !== 'granted') {
+                const granted = await requestNotificationPermission();
+                setNotifPermission(granted ? 'granted' : 'denied');
+                if (granted) {
+                  showPartnerNotification(partnerName);
+                }
+              } else {
+                setShowSecurityInfo(true);
+              }
+            }}
+            aria-label="Notifikasi"
+            title={notifPermission === 'granted' ? 'Notifikasi Aktif' : 'Aktifkan Notifikasi'}
+            className="w-7 h-7 rounded-full bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center transition-colors cursor-pointer relative"
+          >
+            <Bell className={`w-3.5 h-3.5 ${notifPermission === 'granted' ? 'text-blue-400' : 'text-slate-400'}`} />
+            {notifPermission !== 'granted' && (
+              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
+            )}
+          </button>
+
           <button
             onClick={() => setShowSecurityInfo(true)}
             aria-label="Keamanan"
@@ -294,7 +330,7 @@ export const ChatRoom: React.FC<Props> = ({
               <div className="flex items-center gap-1.5">
                 <Shield className="w-4 h-4 text-emerald-400" />
                 <h3 className="text-xs font-semibold text-slate-100">
-                  Proteksi Privasi
+                  Proteksi &amp; Notifikasi
                 </h3>
               </div>
               <button
@@ -310,7 +346,43 @@ export const ChatRoom: React.FC<Props> = ({
               <p>• <strong>Anti-Screenshot:</strong> Pintasan tangkapan layar diblokir.</p>
               <p>• <strong>Penyamaran Layar:</strong> Konten disamarkan saat berpindah aplikasi.</p>
               <p>• <strong>Foto Sekali Lihat:</strong> Hanya dapat dibuka 1 kali oleh penerima.</p>
-              <p>• <strong>Khusus Ponsel:</strong> Akses desktop dinonaktifkan.</p>
+              <p>• <strong>Push Notifikasi Samaran:</strong> Hanya muncul nama tanpa isi pesan.</p>
+            </div>
+
+            {/* Notification Control Panel */}
+            <div className="pt-2 border-t border-slate-800 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-slate-400">Status Notifikasi:</span>
+                <span className={`font-semibold ${notifPermission === 'granted' ? 'text-emerald-400' : 'text-amber-400'}`}>
+                  {notifPermission === 'granted' ? 'Aktif' : 'Belum Aktif'}
+                </span>
+              </div>
+
+              {notifPermission !== 'granted' ? (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const granted = await requestNotificationPermission();
+                    setNotifPermission(granted ? 'granted' : 'denied');
+                    if (granted) {
+                      showPartnerNotification(partnerName);
+                    }
+                  }}
+                  className="w-full py-1.5 px-3 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-[11px] font-medium transition-colors cursor-pointer text-center"
+                >
+                  Aktifkan Notifikasi di HP Ini
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    showPartnerNotification(partnerName);
+                  }}
+                  className="w-full py-1.5 px-3 bg-slate-800 hover:bg-slate-750 text-slate-300 rounded-lg text-[10px] font-medium transition-colors cursor-pointer text-center"
+                >
+                  Uji Coba Notifikasi Sekarang
+                </button>
+              )}
             </div>
 
             {currentUser === 'Soe' && (
@@ -334,8 +406,8 @@ export const ChatRoom: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Messages Scroll Area - Compact gap */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar">
+      {/* Messages Scroll Area - Compact gap & locked viewport bounce */}
+      <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar overscroll-contain touch-pan-y">
         {messages.map((msg) => {
           const isMe = msg.name === currentUser;
           const isViewOnce = Boolean(msg.viewonce_photo);
@@ -519,10 +591,13 @@ export const ChatRoom: React.FC<Props> = ({
             type="text"
             value={inputText}
             onChange={handleInputChange}
+            onFocus={() => {
+              setTimeout(() => scrollToBottom(true), 250);
+            }}
             placeholder="Ketik pesan..."
             maxLength={500}
             autoComplete="off"
-            className="flex-1 bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-full px-3 py-1.5 text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
+            className="flex-1 bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-full px-3.5 py-1.5 text-[15px] sm:text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
           />
 
           <button
