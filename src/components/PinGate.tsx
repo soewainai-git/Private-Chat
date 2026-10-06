@@ -72,14 +72,8 @@ export const PinGate: React.FC<Props> = ({ onUnlock }) => {
 
       {/* Main Compact PIN Card */}
       <div className={`w-full max-w-xs flex flex-col items-center my-auto transition-transform ${isShaking ? 'animate-shake' : ''}`}>
-        {/* Two Avatars: Soe & Haru */}
-        <div className="flex items-center -space-x-2.5 mb-3">
-          <div className="w-12 h-12 rounded-full border-2 border-sky-400 overflow-hidden shadow-md shadow-black/40">
-            <img src="/avatars/soe.jpg" alt="Soe" className="w-full h-full object-cover" />
-          </div>
-          <div className="w-12 h-12 rounded-full border-2 border-amber-300 overflow-hidden shadow-md shadow-black/40">
-            <img src="/avatars/haru.jpg" alt="Haru" className="w-full h-full object-cover" />
-          </div>
+        <div className="w-11 h-11 rounded-2xl bg-slate-900 border border-slate-800 flex items-center justify-center text-slate-300 mb-3 shadow-md shadow-black/40">
+          <Lock className="w-5 h-5 text-slate-300" />
         </div>
 
         <h1 className="text-base font-semibold text-slate-100 mb-4 tracking-tight">

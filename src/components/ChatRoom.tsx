@@ -26,7 +26,8 @@ import {
   fetchLastSeen,
   subscribeToChatEvents,
   broadcastTyping,
-  clearAllMessages
+  clearAllMessages,
+  getAvatarStorageUrl
 } from '../services/chatService';
 import {
   getNotificationPermission,
@@ -37,6 +38,7 @@ import { ViewOnceModal } from './ViewOnceModal';
 import { SwipeableMessageItem } from './SwipeableMessageItem';
 import { EmojiPicker } from './EmojiPicker';
 import { StarredMessagesModal } from './StarredMessagesModal';
+import { ProfileModal } from './ProfileModal';
 
 interface Props {
   currentUser: UserIdentity;
@@ -98,6 +100,29 @@ export const ChatRoom: React.FC<Props> = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const partnerName: UserIdentity = currentUser === 'Soe' ? 'Haru' : 'Soe';
+
+  // Real Profile Photos State (Synced via Supabase Storage)
+  const [soeAvatarUrl, setSoeAvatarUrl] = useState<string>(() => {
+    return localStorage.getItem('soe_avatar_url_cache') || getAvatarStorageUrl('Soe');
+  });
+  const [haruAvatarUrl, setHaruAvatarUrl] = useState<string>(() => {
+    return localStorage.getItem('haru_avatar_url_cache') || getAvatarStorageUrl('Haru');
+  });
+  const [soeImgFailed, setSoeImgFailed] = useState<boolean>(false);
+  const [haruImgFailed, setHaruImgFailed] = useState<boolean>(false);
+  const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+
+  const handleAvatarUpdated = (identity: UserIdentity, newUrl: string) => {
+    if (identity === 'Soe') {
+      setSoeAvatarUrl(newUrl);
+      setSoeImgFailed(false);
+      try { localStorage.setItem('soe_avatar_url_cache', newUrl); } catch {}
+    } else {
+      setHaruAvatarUrl(newUrl);
+      setHaruImgFailed(false);
+      try { localStorage.setItem('haru_avatar_url_cache', newUrl); } catch {}
+    }
+  };
 
   // Format timestamp in Indonesian
   const formatTime = (isoString: string) => {
@@ -228,6 +253,9 @@ export const ChatRoom: React.FC<Props> = ({
       (deletedMsgId) => {
         setMessages(prev => prev.filter(m => m.id !== deletedMsgId));
         handleUnstarById(deletedMsgId);
+      },
+      (identity, url) => {
+        handleAvatarUpdated(identity, url);
       }
     );
 
@@ -463,24 +491,44 @@ export const ChatRoom: React.FC<Props> = ({
             <ArrowLeft className="w-3.5 h-3.5" />
           </button>
 
-          {/* Partner Avatar with Real Photo */}
+          {/* Partner Avatar with Real Photo or Cute Soft Initial */}
           <div className="relative flex-none">
-            <div
-              className={`w-8 h-8 rounded-full border-2 overflow-hidden flex items-center justify-center ${
+            <button
+              type="button"
+              onClick={() => setShowProfileModal(true)}
+              title={`Lihat profil / ganti foto asli ${partnerName}`}
+              className={`w-8 h-8 rounded-full border-2 overflow-hidden flex items-center justify-center cursor-pointer transition-transform active:scale-95 ${
                 isDay
                   ? 'border-sky-300 shadow-xs bg-sky-100'
                   : 'border-indigo-500/70 bg-indigo-950'
               }`}
             >
-              <img
-                src={partnerName === 'Soe' ? '/avatars/soe.jpg' : '/avatars/haru.jpg'}
-                alt={partnerName}
-                className="w-full h-full object-cover"
-                loading="eager"
-              />
-            </div>
+              {(partnerName === 'Soe' ? !soeImgFailed && soeAvatarUrl : !haruImgFailed && haruAvatarUrl) ? (
+                <img
+                  src={partnerName === 'Soe' ? soeAvatarUrl : haruAvatarUrl}
+                  alt={partnerName}
+                  className="w-full h-full object-cover"
+                  loading="eager"
+                  onError={() => {
+                    if (partnerName === 'Soe') setSoeImgFailed(true);
+                    else setHaruImgFailed(true);
+                  }}
+                />
+              ) : (
+                /* Cute Soft Non-AI Initial Fallback */
+                <div
+                  className={`w-full h-full flex items-center justify-center font-bold text-xs select-none ${
+                    partnerName === 'Soe'
+                      ? 'bg-linear-to-br from-sky-400 to-indigo-500 text-white shadow-inner'
+                      : 'bg-linear-to-br from-rose-400 to-amber-300 text-white shadow-inner'
+                  }`}
+                >
+                  {partnerName[0]}
+                </div>
+              )}
+            </button>
             <span
-              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ${
+              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 pointer-events-none ${
                 isDay ? 'ring-white' : 'ring-[#0c1324]'
               } ${
                 partnerIsOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'
@@ -952,6 +1000,20 @@ export const ChatRoom: React.FC<Props> = ({
           onUnstar={handleUnstarById}
         />
       )}
+
+      {/* Real Profile Photo View & Upload Modal */}
+      <ProfileModal
+        isOpen={showProfileModal}
+        onClose={() => setShowProfileModal(false)}
+        currentUser={currentUser}
+        partnerName={partnerName}
+        partnerIsOnline={partnerIsOnline}
+        partnerLastSeen={partnerLastSeen}
+        soeAvatarUrl={soeImgFailed ? '' : soeAvatarUrl}
+        haruAvatarUrl={haruImgFailed ? '' : haruAvatarUrl}
+        onAvatarUpdated={handleAvatarUpdated}
+        formatTime={formatTime}
+      />
     </div>
   );
 };

@@ -522,7 +522,8 @@ export function subscribeToChatEvents(
   onPresenceUpdate: (identity: UserIdentity, timestamp: string) => void,
   onClearMessages?: () => void,
   onMessageEdited?: (payload: { id: string; message: string; is_edited?: boolean; edited_at?: string }) => void,
-  onMessageDeleted?: (msgId: string) => void
+  onMessageDeleted?: (msgId: string) => void,
+  onAvatarUpdate?: (identity: UserIdentity, url: string) => void
 ) {
   const handleBroadcast = (e: MessageEvent) => {
     const { type, payload, tabId } = e.data || {};
@@ -536,6 +537,8 @@ export function subscribeToChatEvents(
       if (onMessageEdited) onMessageEdited(payload);
     } else if ((type === 'UNSEND_MESSAGE' || type === 'DELETE_MESSAGE') && payload?.id) {
       if (onMessageDeleted) onMessageDeleted(payload.id);
+    } else if (type === 'AVATAR_UPDATE' && payload) {
+      if (onAvatarUpdate) onAvatarUpdate(payload.identity, payload.url);
     } else if (type === 'TYPING' && payload) {
       onTyping(payload);
     } else if (type === 'HEARTBEAT' && payload) {
@@ -598,6 +601,11 @@ export function subscribeToChatEvents(
           onTyping({ sender: payload.name, isTyping: !payload.stopped });
         }
       })
+      .on('broadcast', { event: 'avatar_update' }, ({ payload }: any) => {
+        if (payload?.identity && payload?.url && onAvatarUpdate) {
+          onAvatarUpdate(payload.identity, payload.url);
+        }
+      })
       .subscribe();
   }
 
@@ -654,3 +662,67 @@ export function broadcastTyping(sender: UserIdentity, isTyping: boolean) {
     } catch {}
   }
 }
+
+export function getAvatarStorageUrl(identity: UserIdentity): string {
+  const supabase = getSupabase();
+  if (supabase) {
+    const { data } = supabase.storage
+      .from('photos')
+      .getPublicUrl(`avatars/${identity.toLowerCase()}.jpg`);
+    if (data?.publicUrl) {
+      return data.publicUrl;
+    }
+  }
+  return `/avatars/${identity.toLowerCase()}.jpg`;
+}
+
+export async function uploadAvatar(identity: UserIdentity, file: File | Blob): Promise<string | null> {
+  const supabase = getSupabase();
+  if (!supabase) return null;
+
+  try {
+    const path = `avatars/${identity.toLowerCase()}.jpg`;
+    const { error } = await supabase.storage
+      .from('photos')
+      .upload(path, file, {
+        upsert: true,
+        contentType: 'image/jpeg',
+        cacheControl: '0',
+      });
+
+    if (error) {
+      console.error('Failed to upload avatar to Supabase:', error);
+      return null;
+    }
+
+    const { data } = supabase.storage.from('photos').getPublicUrl(path);
+    const updatedUrl = data?.publicUrl ? `${data.publicUrl}?t=${Date.now()}` : null;
+
+    if (updatedUrl) {
+      if (broadcast) {
+        broadcast.postMessage({
+          type: 'AVATAR_UPDATE',
+          payload: { identity, url: updatedUrl },
+          tabId: TAB_ID,
+        });
+      }
+
+      // Also broadcast over Supabase realtime channel if possible
+      try {
+        const tableName = getCommentsTableName();
+        const channel = supabase.channel(`soe-haru-isolated-${tableName}`);
+        channel.send({
+          type: 'broadcast',
+          event: 'avatar_update',
+          payload: { identity, url: updatedUrl },
+        });
+      } catch {}
+    }
+
+    return updatedUrl;
+  } catch (err) {
+    console.error('Exception uploading avatar:', err);
+    return null;
+  }
+}
+
