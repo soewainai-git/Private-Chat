@@ -407,7 +407,7 @@ export const ChatRoom: React.FC<Props> = ({
       return;
     }
 
-    // Video validation: duration <= 20 seconds
+    // Video validation: duration <= 60 seconds (1 minute)
     const videoObj = document.createElement('video');
     videoObj.preload = 'metadata';
     const blobUrl = URL.createObjectURL(file);
@@ -416,8 +416,8 @@ export const ChatRoom: React.FC<Props> = ({
     videoObj.onloadedmetadata = () => {
       URL.revokeObjectURL(blobUrl);
       const duration = videoObj.duration;
-      if (duration > 20.5) {
-        alert('Durasi video melebihi batas! Maksimal 20 detik agar otomatis looping seperti GIF.');
+      if (duration > 60.5) {
+        alert('Durasi video melebihi batas! Maksimal 60 detik (1 menit) agar otomatis looping seperti GIF.');
         return;
       }
       sendMediaMessage(currentUser, file, 'video', replyTo).then(sent => {
