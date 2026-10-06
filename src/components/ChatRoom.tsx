@@ -6,12 +6,15 @@ import {
   Shield,
   ArrowLeft,
   CheckCheck,
-  Bell
+  Bell,
+  Pencil,
+  Check
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
   fetchMessages,
   sendMessage,
+  editMessage,
   sendViewOncePhoto,
   markViewOnceOpened,
   sendHeartbeat,
@@ -26,6 +29,7 @@ import {
   showPartnerNotification
 } from '../services/notificationService';
 import { ViewOnceModal } from './ViewOnceModal';
+import { SwipeableMessageItem } from './SwipeableMessageItem';
 
 interface Props {
   currentUser: UserIdentity;
@@ -41,6 +45,7 @@ export const ChatRoom: React.FC<Props> = ({
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
   const [replyTo, setReplyTo] = useState<{ name: string; message: string } | null>(null);
+  const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [activeViewOnce, setActiveViewOnce] = useState<ChatMessage | null>(null);
 
   // Presence states
@@ -152,6 +157,15 @@ export const ChatRoom: React.FC<Props> = ({
       },
       () => {
         setMessages([]);
+      },
+      (payload) => {
+        setMessages(prev =>
+          prev.map(m =>
+            m.id === payload.id
+              ? { ...m, message: payload.message, is_edited: true, edited_at: payload.edited_at }
+              : m
+          )
+        );
       }
     );
 
@@ -171,10 +185,25 @@ export const ChatRoom: React.FC<Props> = ({
     }, 2000);
   };
 
-  // Send Text Message
+  // Send or Edit Text Message
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!inputText.trim()) return;
+
+    // Handle Edit Mode for typos
+    if (editingMessage) {
+      const textToUpdate = inputText.trim();
+      const targetId = editingMessage.id;
+      setEditingMessage(null);
+      setInputText('');
+      broadcastTyping(currentUser, false);
+
+      await editMessage(targetId, textToUpdate);
+      setMessages(prev =>
+        prev.map(m => (m.id === targetId ? { ...m, message: textToUpdate, is_edited: true } : m))
+      );
+      return;
+    }
 
     const textToSend = inputText.trim();
     setInputText('');
@@ -408,131 +437,26 @@ export const ChatRoom: React.FC<Props> = ({
 
       {/* Messages Scroll Area - Compact gap & locked viewport bounce */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar overscroll-contain touch-pan-y">
-        {messages.map((msg) => {
-          const isMe = msg.name === currentUser;
-          const isViewOnce = Boolean(msg.viewonce_photo);
-
-          return (
-            <div
-              key={msg.id}
-              className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}
-            >
-              {!isMe && (
-                <span className="text-[9px] font-medium text-slate-500 ml-1 mb-0.5">
-                  {msg.name}
-                </span>
-              )}
-
-              {/* Message Bubble or View-Once Card */}
-              {isViewOnce ? (
-                /* View Once 1X Photo Card - Compact */
-                <div
-                  onClick={() => {
-                    if (isMe) {
-                      // Sender cannot open the photo as requested
-                      return;
-                    }
-                    if (!msg.viewonce_opened) {
-                      handleOpenViewOnce(msg);
-                    }
-                  }}
-                  className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
-                    isMe
-                      ? `bg-slate-850 border-slate-750 text-slate-100 rounded-br-xs ${
-                          msg.viewonce_opened
-                            ? 'border-blue-500/40 bg-blue-950/20'
-                            : 'cursor-default'
-                        }`
-                      : `bg-slate-900 border-slate-800 text-slate-100 rounded-bl-xs ${
-                          msg.viewonce_opened
-                            ? 'opacity-40 cursor-default'
-                            : 'hover:border-slate-600 active:scale-98 shadow-sm cursor-pointer'
-                        }`
-                  }`}
-                >
-                  {/* Badge 1 / Status Icon */}
-                  <div
-                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center font-bold text-[11px] flex-none ${
-                      isMe
-                        ? msg.viewonce_opened
-                          ? 'border-blue-400 text-blue-400 bg-blue-500/10'
-                          : 'border-slate-500 text-slate-400'
-                        : msg.viewonce_opened
-                        ? 'border-slate-500 text-slate-500'
-                        : 'border-blue-400 text-blue-400'
-                    }`}
-                  >
-                    1
-                  </div>
-
-                  <div className="text-left">
-                    <p className="text-[11px] font-semibold flex items-center gap-1">
-                      <span>Foto</span>
-                      {isMe && msg.viewonce_opened && (
-                        <CheckCheck className="w-3 h-3 text-blue-400 inline" />
-                      )}
-                    </p>
-                    <p className="text-[9px] text-slate-400">
-                      {isMe
-                        ? msg.viewonce_opened
-                          ? `Dibuka oleh ${partnerName}`
-                          : 'Terkirim (Menunggu dibuka)'
-                        : msg.viewonce_opened
-                        ? 'Sudah Dibuka'
-                        : 'Ketuk untuk melihat sekali'}
-                    </p>
-                  </div>
-                </div>
-              ) : (
-                /* Normal Text Message Bubble - Compact */
-                <div
-                  onDoubleClick={() => setReplyTo({ name: msg.name, message: msg.message })}
-                  className={`relative max-w-[78%] px-3 py-1.5 rounded-xl shadow-xs text-xs break-words transition-all ${
-                    isMe
-                      ? 'bg-blue-600 text-white rounded-br-xs'
-                      : 'bg-slate-850 text-slate-100 rounded-bl-xs border border-slate-800'
-                  }`}
-                >
-                  {/* Quoted Reply if present */}
-                  {msg.reply_name && (
-                    <div
-                      className={`mb-1 px-2 py-0.5 rounded-md text-[10px] border-l-2 ${
-                        isMe
-                          ? 'bg-blue-700/60 border-blue-300 text-blue-100'
-                          : 'bg-slate-900/80 border-slate-500 text-slate-300'
-                      }`}
-                    >
-                      <p className="font-semibold text-[9px] opacity-80">{msg.reply_name}</p>
-                      <p className="truncate text-[10px]">{msg.reply_message}</p>
-                    </div>
-                  )}
-
-                  <p className="text-[12px] leading-relaxed whitespace-pre-wrap">
-                    {msg.message}
-                  </p>
-
-                  <div
-                    className={`text-[8.5px] text-right mt-0.5 opacity-65 flex items-center justify-end gap-0.5 ${
-                      isMe ? 'text-blue-100' : 'text-slate-400'
-                    }`}
-                  >
-                    <span>{formatTime(msg.created_at)}</span>
-                    {isMe && <CheckCheck className="w-2.5 h-2.5 inline" />}
-                  </div>
-                </div>
-              )}
-
-              {/* Quick Reply Helper Action */}
-              <button
-                type="button"
-                onClick={() => setReplyTo({ name: msg.name, message: msg.message || 'Foto sekali lihat' })}
-                className="opacity-0 group-hover:opacity-100 text-[9px] text-slate-500 hover:text-slate-300 transition-opacity mt-0.5 px-1 cursor-pointer"
-              >
-                Balas
-              </button>
-            </div>
-          );
-        })}
+        {messages.map((msg) => (
+          <SwipeableMessageItem
+            key={msg.id}
+            msg={msg}
+            isMe={msg.name === currentUser}
+            partnerName={partnerName}
+            formatTime={formatTime}
+            onReply={(targetMsg) => {
+              setReplyTo({
+                name: targetMsg.name,
+                message: targetMsg.message || 'Foto sekali lihat',
+              });
+            }}
+            onEdit={(targetMsg) => {
+              setEditingMessage(targetMsg);
+              setInputText(targetMsg.message);
+            }}
+            onOpenViewOnce={handleOpenViewOnce}
+          />
+        ))}
 
         <div ref={messagesEndRef} />
       </div>
@@ -546,6 +470,28 @@ export const ChatRoom: React.FC<Props> = ({
             <span className="w-1 h-1 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }}></span>
             <span className="w-1 h-1 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }}></span>
           </span>
+        </div>
+      )}
+
+      {/* Editing Message Banner */}
+      {editingMessage && (
+        <div className="flex-none mx-2.5 mb-1 px-2.5 py-1.5 bg-blue-950/80 border-l-2 border-blue-400 rounded-r-lg flex items-center justify-between text-xs animate-fade-in shadow-xs">
+          <div className="min-w-0 pr-2 flex items-center gap-2">
+            <Pencil className="w-3.5 h-3.5 text-blue-400 flex-none" />
+            <div className="min-w-0">
+              <p className="font-semibold text-blue-400 text-[10px]">Mengedit pesan</p>
+              <p className="text-slate-300 truncate text-[10px]">{editingMessage.message}</p>
+            </div>
+          </div>
+          <button
+            onClick={() => {
+              setEditingMessage(null);
+              setInputText('');
+            }}
+            className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center cursor-pointer flex-none"
+          >
+            <X className="w-3 h-3" />
+          </button>
         </div>
       )}
 
@@ -594,7 +540,7 @@ export const ChatRoom: React.FC<Props> = ({
             onFocus={() => {
               setTimeout(() => scrollToBottom(true), 250);
             }}
-            placeholder="Ketik pesan..."
+            placeholder={editingMessage ? "Edit pesan Anda..." : "Ketik pesan..."}
             maxLength={500}
             autoComplete="off"
             className="flex-1 bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-full px-3.5 py-1.5 text-[15px] sm:text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
@@ -603,10 +549,19 @@ export const ChatRoom: React.FC<Props> = ({
           <button
             type="submit"
             disabled={!inputText.trim()}
-            aria-label="Kirim"
-            className="w-8 h-8 rounded-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 disabled:hover:bg-blue-600 text-white flex items-center justify-center transition-all active:scale-95 cursor-pointer flex-none shadow-sm"
+            aria-label={editingMessage ? "Simpan Perubahan" : "Kirim"}
+            title={editingMessage ? "Simpan Perubahan" : "Kirim"}
+            className={`w-8 h-8 rounded-full ${
+              editingMessage
+                ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                : 'bg-blue-600 hover:bg-blue-500 text-white'
+            } disabled:opacity-40 flex items-center justify-center transition-all active:scale-95 cursor-pointer flex-none shadow-sm`}
           >
-            <Send className="w-3.5 h-3.5 ml-0.5" />
+            {editingMessage ? (
+              <Check className="w-3.5 h-3.5" />
+            ) : (
+              <Send className="w-3.5 h-3.5 ml-0.5" />
+            )}
           </button>
         </form>
       </footer>

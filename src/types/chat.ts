@@ -9,6 +9,8 @@ export interface ChatMessage {
   reply_name?: string | null;
   reply_message?: string | null;
   created_at: string;
+  is_edited?: boolean;
+  edited_at?: string;
 }
 
 export interface PresenceLog {

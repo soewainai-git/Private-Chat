@@ -62,6 +62,8 @@ export async function fetchMessages(): Promise<ChatMessage[]> {
         reply_name: row.reply_name || null,
         reply_message: row.reply_message || null,
         created_at: row.created_at || new Date().toISOString(),
+        is_edited: Boolean(row.is_edited),
+        edited_at: row.edited_at || undefined,
       }))
       .reverse();
 
@@ -269,6 +271,52 @@ export async function markViewOnceOpened(msgId: string): Promise<void> {
   }
 }
 
+export async function editMessage(msgId: string, newMessage: string): Promise<boolean> {
+  const trimmed = newMessage.trim();
+  if (!trimmed) return false;
+
+  const current = getLocalMessages();
+  const now = new Date().toISOString();
+  const updated = current.map(m => {
+    if (m.id === msgId) {
+      return { ...m, message: trimmed, is_edited: true, edited_at: now };
+    }
+    return m;
+  });
+  saveLocalMessages(updated);
+
+  if (broadcast) {
+    broadcast.postMessage({
+      type: 'EDIT_MESSAGE',
+      payload: { id: msgId, message: trimmed, is_edited: true, edited_at: now },
+      tabId: TAB_ID,
+    });
+  }
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const tableName = getCommentsTableName();
+      const { error } = await supabase
+        .from(tableName)
+        .update({ message: trimmed, is_edited: true })
+        .eq('id', msgId);
+
+      if (error) {
+        // Fallback if is_edited column is not in comments table schema
+        await supabase
+          .from(tableName)
+          .update({ message: trimmed })
+          .eq('id', msgId);
+      }
+    } catch (err) {
+      console.warn('Supabase edit message error:', err);
+    }
+  }
+
+  return true;
+}
+
 export async function sendHeartbeat(identity: UserIdentity): Promise<void> {
   const now = new Date().toISOString();
   if (identity === 'Soe') {
@@ -322,7 +370,8 @@ export function subscribeToChatEvents(
   onPhotoOpened: (msgId: string) => void,
   onTyping: (payload: { sender: UserIdentity; isTyping: boolean }) => void,
   onPresenceUpdate: (identity: UserIdentity, timestamp: string) => void,
-  onClearMessages?: () => void
+  onClearMessages?: () => void,
+  onMessageEdited?: (payload: { id: string; message: string; is_edited?: boolean; edited_at?: string }) => void
 ) {
   const handleBroadcast = (e: MessageEvent) => {
     const { type, payload, tabId } = e.data || {};
@@ -332,6 +381,8 @@ export function subscribeToChatEvents(
       onNewMessage(payload);
     } else if (type === 'MARK_OPENED' && payload?.id) {
       onPhotoOpened(payload.id);
+    } else if (type === 'EDIT_MESSAGE' && payload?.id) {
+      if (onMessageEdited) onMessageEdited(payload);
     } else if (type === 'TYPING' && payload) {
       onTyping(payload);
     } else if (type === 'HEARTBEAT' && payload) {
@@ -365,6 +416,8 @@ export function subscribeToChatEvents(
             reply_name: row.reply_name || null,
             reply_message: row.reply_message || null,
             created_at: row.created_at || new Date().toISOString(),
+            is_edited: Boolean(row.is_edited),
+            edited_at: row.edited_at || undefined,
           };
           onNewMessage(msg);
         }
@@ -373,6 +426,14 @@ export function subscribeToChatEvents(
         const row = payload.new as any;
         if (row.viewonce_opened) {
           onPhotoOpened(String(row.id));
+        }
+        if (row.message !== undefined && onMessageEdited) {
+          onMessageEdited({
+            id: String(row.id),
+            message: row.message,
+            is_edited: true,
+            edited_at: row.edited_at || new Date().toISOString(),
+          });
         }
       })
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: tableName }, () => {
