@@ -218,14 +218,14 @@ export const SwipeableMessageItem: React.FC<Props> = ({
             {/* Quoted Reply if present */}
             {msg.reply_name && (
               <div
-                className={`mb-1 px-2 py-0.5 rounded-md text-[10px] border-l-2 ${
+                className={`mb-1 px-2 py-1 rounded-md text-[10px] border-l-2 max-w-[220px] sm:max-w-xs overflow-hidden ${
                   isMe
                     ? 'bg-blue-700/60 border-blue-300 text-blue-100'
                     : 'bg-slate-900/80 border-slate-500 text-slate-300'
                 }`}
               >
-                <p className="font-semibold text-[9px] opacity-80">{msg.reply_name}</p>
-                <p className="truncate text-[10px]">{msg.reply_message}</p>
+                <p className="font-semibold text-[9px] opacity-85 truncate">{msg.reply_name}</p>
+                <p className="text-[10px] opacity-80 truncate max-w-full">{msg.reply_message}</p>
               </div>
             )}
 

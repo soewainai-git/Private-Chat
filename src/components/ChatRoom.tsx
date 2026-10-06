@@ -8,7 +8,8 @@ import {
   CheckCheck,
   Bell,
   Pencil,
-  Check
+  Check,
+  Smile
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
@@ -30,6 +31,7 @@ import {
 } from '../services/notificationService';
 import { ViewOnceModal } from './ViewOnceModal';
 import { SwipeableMessageItem } from './SwipeableMessageItem';
+import { EmojiPicker } from './EmojiPicker';
 
 interface Props {
   currentUser: UserIdentity;
@@ -46,6 +48,7 @@ export const ChatRoom: React.FC<Props> = ({
   const [inputText, setInputText] = useState('');
   const [replyTo, setReplyTo] = useState<{ name: string; message: string } | null>(null);
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
+  const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const [activeViewOnce, setActiveViewOnce] = useState<ChatMessage | null>(null);
 
   // Presence states
@@ -196,6 +199,7 @@ export const ChatRoom: React.FC<Props> = ({
       const targetId = editingMessage.id;
       setEditingMessage(null);
       setInputText('');
+      setShowEmojiPicker(false);
       broadcastTyping(currentUser, false);
 
       await editMessage(targetId, textToUpdate);
@@ -207,6 +211,7 @@ export const ChatRoom: React.FC<Props> = ({
 
     const textToSend = inputText.trim();
     setInputText('');
+    setShowEmojiPicker(false);
     broadcastTyping(currentUser, false);
 
     const sent = await sendMessage(currentUser, textToSend, replyTo);
@@ -500,7 +505,7 @@ export const ChatRoom: React.FC<Props> = ({
         <div className="flex-none mx-2.5 mb-1 px-2.5 py-1.5 bg-slate-900 border-l-2 border-blue-500 rounded-r-lg flex items-center justify-between text-xs animate-fade-in shadow-xs">
           <div className="min-w-0 pr-2">
             <p className="font-semibold text-blue-400 text-[10px]">Membalas {replyTo.name}</p>
-            <p className="text-slate-400 truncate text-[10px]">{replyTo.message}</p>
+            <p className="text-slate-400 truncate max-w-[210px] sm:max-w-md text-[10px]">{replyTo.message}</p>
           </div>
           <button
             onClick={() => setReplyTo(null)}
@@ -509,6 +514,17 @@ export const ChatRoom: React.FC<Props> = ({
             <X className="w-3 h-3" />
           </button>
         </div>
+      )}
+
+      {/* Emoji Picker Tray (Appears above input) */}
+      {showEmojiPicker && (
+        <EmojiPicker
+          onSelectEmoji={(emoji) => {
+            setInputText(prev => prev + emoji);
+            broadcastTyping(currentUser, true);
+          }}
+          onClose={() => setShowEmojiPicker(false)}
+        />
       )}
 
       {/* Compact Bottom Input Bar */}
@@ -521,17 +537,34 @@ export const ChatRoom: React.FC<Props> = ({
             onChange={handlePhotoSelect}
             className="hidden"
           />
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            title="Kirim Foto Sekali Lihat (1X)"
-            className="w-8 h-8 rounded-full bg-slate-850 hover:bg-slate-800 active:bg-slate-750 text-slate-300 flex items-center justify-center border border-slate-750 transition-transform active:scale-95 cursor-pointer flex-none relative"
-          >
-            <Camera className="w-3.5 h-3.5" />
-            <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 text-white font-bold text-[8px] flex items-center justify-center border border-[#0f141f]">
-              1
-            </span>
-          </button>
+
+          {/* Dynamic Left Button: Transforms to Emoji when typing, Camera when empty */}
+          {inputText.length > 0 ? (
+            <button
+              type="button"
+              onClick={() => setShowEmojiPicker(prev => !prev)}
+              title="Pilih Emoji"
+              className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all active:scale-95 cursor-pointer flex-none ${
+                showEmojiPicker
+                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-400 ring-2 ring-amber-400/20'
+                  : 'bg-slate-850 hover:bg-slate-800 active:bg-slate-750 text-amber-400 border-slate-750 shadow-xs'
+              }`}
+            >
+              <Smile className="w-4 h-4" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              title="Kirim Foto Sekali Lihat (1X)"
+              className="w-8 h-8 rounded-full bg-slate-850 hover:bg-slate-800 active:bg-slate-750 text-slate-300 flex items-center justify-center border border-slate-750 transition-transform active:scale-95 cursor-pointer flex-none relative"
+            >
+              <Camera className="w-3.5 h-3.5" />
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 text-white font-bold text-[8px] flex items-center justify-center border border-[#0f141f]">
+                1
+              </span>
+            </button>
+          )}
 
           <input
             type="text"
