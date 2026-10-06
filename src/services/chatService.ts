@@ -31,7 +31,7 @@ export function saveLocalMessages(messages: ChatMessage[]) {
   }
 }
 
-export async function fetchMessages(): Promise<ChatMessage[]> {
+export async function fetchMessages(limitCount = 60, offset = 0): Promise<ChatMessage[]> {
   const local = getLocalMessages();
   const supabase = getSupabase();
   if (!supabase) {
@@ -45,7 +45,7 @@ export async function fetchMessages(): Promise<ChatMessage[]> {
       .from(tableName)
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(60);
+      .range(offset, offset + limitCount - 1);
 
     if (error || !data) {
       return local;
@@ -69,7 +69,9 @@ export async function fetchMessages(): Promise<ChatMessage[]> {
 
     // Supabase is the source of truth:
     // If Supabase returned results (including empty array when database is cleared), sync local cache!
-    saveLocalMessages(remoteMessages);
+    if (offset === 0) {
+      saveLocalMessages(remoteMessages);
+    }
     return remoteMessages;
   } catch (err) {
     console.warn('fetchMessages fallback to local:', err);

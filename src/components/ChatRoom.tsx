@@ -6,13 +6,10 @@ import {
   Shield,
   ArrowLeft,
   CheckCheck,
-  Bell,
   Pencil,
   Check,
   Smile,
-  Sun,
-  Moon,
-  CloudSun
+  Star
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
@@ -35,22 +32,18 @@ import {
 import { ViewOnceModal } from './ViewOnceModal';
 import { SwipeableMessageItem } from './SwipeableMessageItem';
 import { EmojiPicker } from './EmojiPicker';
-import { SkyTheme } from './SkyBackground';
+import { StarredMessagesModal } from './StarredMessagesModal';
 
 interface Props {
   currentUser: UserIdentity;
   onLock: () => void;
   triggerPrivacyAlert: (msg: string) => void;
-  skyTheme?: SkyTheme;
-  onSkyThemeChange?: (theme: SkyTheme) => void;
 }
 
 export const ChatRoom: React.FC<Props> = ({
   currentUser,
   onLock,
   triggerPrivacyAlert,
-  skyTheme = 'auto',
-  onSkyThemeChange,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -59,16 +52,37 @@ export const ChatRoom: React.FC<Props> = ({
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const [activeViewOnce, setActiveViewOnce] = useState<ChatMessage | null>(null);
 
-  // Dynamic Day/Night check
+  // 100% Fully Automatic Day/Night based on User Timezone
   const [currentHour, setCurrentHour] = useState<number>(() => new Date().getHours());
   useEffect(() => {
-    const t = setInterval(() => setCurrentHour(new Date().getHours()), 60000);
+    const t = setInterval(() => setCurrentHour(new Date().getHours()), 30000);
     return () => clearInterval(t);
   }, []);
+  const isDay = currentHour >= 6 && currentHour < 18;
 
-  const isDay =
-    skyTheme === 'day' ||
-    (skyTheme === 'auto' && currentHour >= 6 && currentHour < 18);
+  // Soe Exclusive: Starred Messages State
+  const [starredMsgIds, setStarredMsgIds] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem('soe_starred_messages_v1');
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [starredMessagesMap, setStarredMessagesMap] = useState<Record<string, ChatMessage>>(() => {
+    try {
+      const raw = localStorage.getItem('soe_starred_messages_cache_v1');
+      return raw ? JSON.parse(raw) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [showStarredModal, setShowStarredModal] = useState<boolean>(false);
+  const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+
+  // Soe Exclusive: Load More Messages State
+  const [loadingMore, setLoadingMore] = useState<boolean>(false);
+  const [hasMore, setHasMore] = useState<boolean>(true);
 
   // Presence states
   const [partnerLastSeen, setPartnerLastSeen] = useState<string | null>(null);
@@ -197,6 +211,96 @@ export const ChatRoom: React.FC<Props> = ({
       unsubscribe();
     };
   }, [currentUser, partnerName]);
+
+  // Soe Exclusive handlers
+  const handleToggleStar = (targetMsg: ChatMessage) => {
+    setStarredMsgIds(prev => {
+      const isStarred = prev.includes(targetMsg.id);
+      const nextIds = isStarred ? prev.filter(id => id !== targetMsg.id) : [...prev, targetMsg.id];
+      try {
+        localStorage.setItem('soe_starred_messages_v1', JSON.stringify(nextIds));
+      } catch {}
+      return nextIds;
+    });
+
+    setStarredMessagesMap(prev => {
+      const next = { ...prev };
+      if (next[targetMsg.id]) {
+        delete next[targetMsg.id];
+      } else {
+        next[targetMsg.id] = targetMsg;
+      }
+      try {
+        localStorage.setItem('soe_starred_messages_cache_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleUnstarById = (msgId: string) => {
+    setStarredMsgIds(prev => {
+      const nextIds = prev.filter(id => id !== msgId);
+      try {
+        localStorage.setItem('soe_starred_messages_v1', JSON.stringify(nextIds));
+      } catch {}
+      return nextIds;
+    });
+    setStarredMessagesMap(prev => {
+      const next = { ...prev };
+      delete next[msgId];
+      try {
+        localStorage.setItem('soe_starred_messages_cache_v1', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  };
+
+  const handleJumpToMessage = async (msgId: string) => {
+    setShowStarredModal(false);
+
+    let el = document.getElementById('msg-' + msgId);
+    if (!el) {
+      // If message is in older history, fetch expanded batch
+      setLoadingMore(true);
+      try {
+        const expanded = await fetchMessages(180, 0);
+        setMessages(expanded);
+        await new Promise(r => setTimeout(r, 120));
+        el = document.getElementById('msg-' + msgId);
+      } finally {
+        setLoadingMore(false);
+      }
+    }
+
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setHighlightedMsgId(msgId);
+      setTimeout(() => setHighlightedMsgId(null), 2500);
+    }
+  };
+
+  const handleLoadMore = async () => {
+    if (loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const older = await fetchMessages(60, messages.length);
+      if (!older || older.length === 0) {
+        setHasMore(false);
+      } else {
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const filtered = older.filter(m => !existingIds.has(m.id));
+          if (filtered.length === 0) {
+            setHasMore(false);
+            return prev;
+          }
+          return [...filtered, ...prev];
+        });
+      }
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setInputText(e.target.value);
@@ -358,62 +462,27 @@ export const ChatRoom: React.FC<Props> = ({
 
         {/* Right Header Actions */}
         <div className="flex items-center gap-1.5">
-          {/* Sky Theme Switcher: Auto / Day / Night */}
-          {onSkyThemeChange && (
+          {/* Soe Exclusive: Starred Messages Button */}
+          {currentUser === 'Soe' && (
             <button
-              onClick={() => {
-                const next: SkyTheme = skyTheme === 'auto' ? 'day' : skyTheme === 'day' ? 'night' : 'auto';
-                onSkyThemeChange(next);
-              }}
-              title={
-                skyTheme === 'auto'
-                  ? `Suasana: Waktu Nyata (${isDay ? 'Siang' : 'Malam'})`
-                  : skyTheme === 'day'
-                  ? 'Suasana: Siang (Awan Bergerak)'
-                  : 'Suasana: Malam (Bulan & Bintang)'
-              }
-              aria-label="Ubah Suasana Langit"
-              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+              type="button"
+              onClick={() => setShowStarredModal(true)}
+              title="Pesan Berbintang (Khusus Soe)"
+              aria-label="Pesan Berbintang"
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer relative ${
                 isDay
                   ? 'bg-white/85 hover:bg-white text-amber-500 border border-amber-200/80 shadow-xs'
-                  : 'bg-slate-850 hover:bg-slate-800 text-indigo-300 border border-indigo-900/60'
+                  : 'bg-slate-850 hover:bg-slate-800 text-amber-400 border border-amber-500/20'
               }`}
             >
-              {skyTheme === 'auto' ? (
-                <CloudSun className="w-3.5 h-3.5 text-sky-500" />
-              ) : skyTheme === 'day' ? (
-                <Sun className="w-3.5 h-3.5 text-amber-500" />
-              ) : (
-                <Moon className="w-3.5 h-3.5 text-indigo-300" />
+              <Star className="w-3.5 h-3.5 fill-amber-400 text-amber-400" />
+              {starredMsgIds.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-500 text-slate-950 font-extrabold text-[8px] flex items-center justify-center shadow-xs">
+                  {starredMsgIds.length}
+                </span>
               )}
             </button>
           )}
-
-          <button
-            onClick={async () => {
-              if (notifPermission !== 'granted') {
-                const granted = await requestNotificationPermission();
-                setNotifPermission(granted ? 'granted' : 'denied');
-                if (granted) {
-                  showPartnerNotification(partnerName);
-                }
-              } else {
-                setShowSecurityInfo(true);
-              }
-            }}
-            aria-label="Notifikasi"
-            title={notifPermission === 'granted' ? 'Notifikasi Aktif' : 'Aktifkan Notifikasi'}
-            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer relative ${
-              isDay
-                ? 'bg-white/80 hover:bg-white text-slate-700 border border-slate-200/50 shadow-xs'
-                : 'bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Bell className={`w-3.5 h-3.5 ${notifPermission === 'granted' ? 'text-blue-500' : isDay ? 'text-slate-600' : 'text-slate-400'}`} />
-            {notifPermission !== 'granted' && (
-              <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-            )}
-          </button>
 
           <button
             onClick={() => setShowSecurityInfo(true)}
@@ -522,6 +591,28 @@ export const ChatRoom: React.FC<Props> = ({
 
       {/* Messages Scroll Area - Compact gap & locked viewport bounce */}
       <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar overscroll-contain touch-pan-y">
+        {/* Soe Exclusive: Load More Messages Button */}
+        {currentUser === 'Soe' && hasMore && (
+          <div className="flex justify-center pt-1 pb-1">
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 ${
+                isDay
+                  ? 'bg-white/90 text-slate-800 hover:bg-white border border-sky-200/80 shadow-xs'
+                  : 'bg-slate-850/90 text-slate-200 hover:bg-slate-800 border border-slate-700/60 shadow-xs'
+              }`}
+            >
+              {loadingMore ? (
+                <span className="animate-pulse">Memuat pesan...</span>
+              ) : (
+                <span>Muat Pesan Sebelumnya ⏳</span>
+              )}
+            </button>
+          </div>
+        )}
+
         {messages.map((msg) => (
           <SwipeableMessageItem
             key={msg.id}
@@ -530,6 +621,10 @@ export const ChatRoom: React.FC<Props> = ({
             partnerName={partnerName}
             formatTime={formatTime}
             isDay={isDay}
+            isStarred={starredMsgIds.includes(msg.id)}
+            canStar={currentUser === 'Soe'}
+            isHighlighted={highlightedMsgId === msg.id}
+            onToggleStar={handleToggleStar}
             onReply={(targetMsg) => {
               setReplyTo({
                 name: targetMsg.name,
@@ -740,6 +835,18 @@ export const ChatRoom: React.FC<Props> = ({
           viewerIdentity={currentUser}
           onCloseAndBurn={handleCloseAndBurn}
           triggerPrivacyAlert={triggerPrivacyAlert}
+        />
+      )}
+
+      {/* Soe Exclusive: Starred Messages Modal */}
+      {currentUser === 'Soe' && (
+        <StarredMessagesModal
+          isOpen={showStarredModal}
+          onClose={() => setShowStarredModal(false)}
+          starredMessages={Object.values(starredMessagesMap)}
+          formatTime={formatTime}
+          onJumpToMessage={handleJumpToMessage}
+          onUnstar={handleUnstarById}
         />
       )}
     </div>

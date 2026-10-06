@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { CheckCheck, CornerUpLeft, Pencil, Copy, Check, MoreVertical, X } from 'lucide-react';
+import { CheckCheck, CornerUpLeft, Pencil, Copy, Check, MoreVertical, X, Star } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 
 interface Props {
@@ -8,9 +8,13 @@ interface Props {
   partnerName: UserIdentity;
   formatTime: (iso: string) => string;
   isDay?: boolean;
+  isStarred?: boolean;
+  canStar?: boolean;
+  isHighlighted?: boolean;
   onReply: (msg: ChatMessage) => void;
   onEdit: (msg: ChatMessage) => void;
   onOpenViewOnce: (msg: ChatMessage) => void;
+  onToggleStar?: (msg: ChatMessage) => void;
 }
 
 export const SwipeableMessageItem: React.FC<Props> = ({
@@ -19,9 +23,13 @@ export const SwipeableMessageItem: React.FC<Props> = ({
   partnerName,
   formatTime,
   isDay = true,
+  isStarred = false,
+  canStar = false,
+  isHighlighted = false,
   onReply,
   onEdit,
   onOpenViewOnce,
+  onToggleStar,
 }) => {
   const isViewOnce = Boolean(msg.viewonce_photo);
   const [translateX, setTranslateX] = useState(0);
@@ -66,7 +74,6 @@ export const SwipeableMessageItem: React.FC<Props> = ({
     // Horizontal swipe gesture detection
     if (Math.abs(diffX) > Math.abs(diffY)) {
       if (diffX > 0) {
-        // Swiping towards right
         const pull = Math.min(diffX * 0.75, 65);
         setTranslateX(pull);
         setIsSwiping(true);
@@ -104,7 +111,12 @@ export const SwipeableMessageItem: React.FC<Props> = ({
   };
 
   return (
-    <div className={`relative flex flex-col ${isMe ? 'items-end' : 'items-start'} group w-full py-0.5 select-none`}>
+    <div
+      id={`msg-${msg.id}`}
+      className={`relative flex flex-col ${isMe ? 'items-end' : 'items-start'} group w-full py-0.5 select-none animate-pop-in ${
+        isHighlighted ? 'animate-highlight-pulse' : ''
+      }`}
+    >
       {/* Background Reply Indicator behind swiping bubble */}
       <div
         className="absolute left-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none transition-all duration-150 z-0"
@@ -115,7 +127,7 @@ export const SwipeableMessageItem: React.FC<Props> = ({
       >
         <div
           className={`w-7 h-7 rounded-full flex items-center justify-center shadow-md ${
-            translateX >= SWIPE_THRESHOLD ? 'bg-blue-600 text-white ring-2 ring-blue-400/40' : 'bg-slate-800 text-slate-400'
+            translateX >= SWIPE_THRESHOLD ? 'bg-sky-500 text-white ring-2 ring-sky-400/40' : 'bg-slate-800 text-slate-400'
           }`}
         >
           <CornerUpLeft className="w-3.5 h-3.5" />
@@ -124,8 +136,8 @@ export const SwipeableMessageItem: React.FC<Props> = ({
 
       {!isMe && (
         <span
-          className={`text-[9px] font-semibold ml-1 mb-0.5 ${
-            isDay ? 'text-slate-800 drop-shadow-xs font-bold' : 'text-indigo-200'
+          className={`text-[9px] ml-1.5 mb-0.5 font-bold ${
+            isDay ? 'text-slate-800 drop-shadow-xs' : 'text-indigo-200'
           }`}
         >
           {msg.name}
@@ -159,7 +171,7 @@ export const SwipeableMessageItem: React.FC<Props> = ({
         )}
 
         {isViewOnce ? (
-          /* View Once 1X Photo Card */
+          /* View Once 1X Photo Card - Soft Cute Style */
           <div
             onClick={() => {
               if (isMe) return;
@@ -167,23 +179,17 @@ export const SwipeableMessageItem: React.FC<Props> = ({
                 onOpenViewOnce(msg);
               }
             }}
-            className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
+            className={`flex items-center gap-2.5 p-2.5 rounded-[20px] border transition-all ${
               isMe
-                ? `bg-slate-900/85 border-blue-400/40 text-slate-100 rounded-br-xs ${
-                    msg.viewonce_opened
-                      ? 'border-blue-400/60 bg-blue-950/40'
-                      : 'cursor-default'
+                ? `bg-slate-900/90 border-blue-400/30 text-slate-100 rounded-br-[4px] shadow-sm ${
+                    msg.viewonce_opened ? 'border-blue-500/40 bg-blue-950/40' : 'cursor-default'
                   }`
                 : isDay
-                ? `bg-white/92 border-sky-200/80 text-slate-850 rounded-bl-xs backdrop-blur-md ${
-                    msg.viewonce_opened
-                      ? 'opacity-50 cursor-default'
-                      : 'hover:border-sky-400 active:scale-98 shadow-sm cursor-pointer'
+                ? `bg-white/98 border-sky-100 text-slate-900 rounded-bl-[4px] shadow-[0_3px_12px_rgba(0,0,0,0.06)] backdrop-blur-md ${
+                    msg.viewonce_opened ? 'opacity-50 cursor-default' : 'hover:border-sky-300 active:scale-98 cursor-pointer'
                   }`
-                : `bg-[#131b31]/92 border-slate-750 text-slate-100 rounded-bl-xs backdrop-blur-md ${
-                    msg.viewonce_opened
-                      ? 'opacity-40 cursor-default'
-                      : 'hover:border-indigo-400 active:scale-98 shadow-sm cursor-pointer'
+                : `bg-[#18233c]/95 border-slate-700/60 text-slate-100 rounded-bl-[4px] shadow-[0_3px_12px_rgba(0,0,0,0.25)] backdrop-blur-md ${
+                    msg.viewonce_opened ? 'opacity-40 cursor-default' : 'hover:border-indigo-400 active:scale-98 cursor-pointer'
                   }`
             }`}
           >
@@ -192,10 +198,10 @@ export const SwipeableMessageItem: React.FC<Props> = ({
                 isMe
                   ? msg.viewonce_opened
                     ? 'border-blue-400 text-blue-400 bg-blue-500/10'
-                    : 'border-slate-500 text-slate-400'
+                    : 'border-slate-400 text-slate-400'
                   : msg.viewonce_opened
                   ? 'border-slate-500 text-slate-500'
-                  : 'border-blue-500 text-blue-500'
+                  : 'border-sky-500 text-sky-500 bg-sky-50'
               }`}
             >
               1
@@ -203,12 +209,15 @@ export const SwipeableMessageItem: React.FC<Props> = ({
 
             <div className="text-left">
               <p className="text-[11px] font-semibold flex items-center gap-1">
-                <span>Foto</span>
+                <span className={isDay && !isMe ? 'text-slate-800' : 'text-slate-100'}>Foto</span>
                 {isMe && msg.viewonce_opened && (
                   <CheckCheck className="w-3 h-3 text-blue-400 inline" />
                 )}
+                {isStarred && (
+                  <span className="text-amber-400 text-[10px]">⭐</span>
+                )}
               </p>
-              <p className={`text-[9px] ${isDay && !isMe ? 'text-slate-600' : 'text-slate-400'}`}>
+              <p className={`text-[9px] ${isDay && !isMe ? 'text-slate-600 font-medium' : 'text-slate-400'}`}>
                 {isMe
                   ? msg.viewonce_opened
                     ? `Dibuka oleh ${partnerName}`
@@ -220,42 +229,55 @@ export const SwipeableMessageItem: React.FC<Props> = ({
             </div>
           </div>
         ) : (
-          /* Normal Text Message Bubble */
+          /* Normal Text Message Bubble - Soft Cute Pillowy Design */
           <div
             onDoubleClick={() => onReply(msg)}
-            className={`relative px-3 py-1.5 rounded-xl shadow-xs text-xs break-words transition-all active:scale-[0.99] ${
+            className={`relative px-3.5 py-2 rounded-[22px] text-xs break-words transition-all active:scale-[0.99] ${
               isMe
-                ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-br-xs shadow-sm shadow-sky-500/25'
+                ? 'bg-gradient-to-tr from-[#3b82f6] to-[#60a5fa] text-white rounded-br-[4px] shadow-[0_3px_12px_rgba(59,130,246,0.22)]'
                 : isDay
-                ? 'bg-white/94 text-slate-850 rounded-bl-xs border border-white/80 shadow-sm backdrop-blur-sm'
-                : 'bg-[#131b31]/92 text-slate-100 rounded-bl-xs border border-slate-700/60 shadow-sm backdrop-blur-sm'
+                ? 'bg-white/98 text-[#0f172a] rounded-bl-[4px] border border-sky-100 shadow-[0_3px_12px_rgba(0,0,0,0.06)] backdrop-blur-md'
+                : 'bg-[#18233c]/95 text-slate-100 rounded-bl-[4px] border border-slate-700/60 shadow-[0_3px_12px_rgba(0,0,0,0.25)] backdrop-blur-md'
             }`}
           >
             {/* Quoted Reply if present */}
             {msg.reply_name && (
               <div
-                className={`mb-1 px-2 py-1 rounded-md text-[10px] border-l-2 max-w-[220px] sm:max-w-xs overflow-hidden ${
+                className={`mb-1 px-2.5 py-1 rounded-xl text-[10px] border-l-2 max-w-[220px] sm:max-w-xs overflow-hidden ${
                   isMe
                     ? 'bg-blue-700/60 border-blue-200 text-blue-50'
                     : isDay
-                    ? 'bg-sky-50/90 border-sky-400 text-slate-700'
-                    : 'bg-slate-900/80 border-indigo-400 text-slate-300'
+                    ? 'bg-sky-50 border-sky-400 text-slate-800'
+                    : 'bg-slate-900/80 border-indigo-400 text-slate-200'
                 }`}
               >
-                <p className="font-semibold text-[9px] opacity-85 truncate">{msg.reply_name}</p>
-                <p className="text-[10px] opacity-80 truncate max-w-full">{msg.reply_message}</p>
+                <p className="font-bold text-[9px] opacity-90 truncate">{msg.reply_name}</p>
+                <p className="text-[10px] opacity-85 truncate max-w-full font-normal">{msg.reply_message}</p>
               </div>
             )}
 
-            <p className="text-[12px] leading-relaxed whitespace-pre-wrap font-normal">
+            {/* Bubble Message Text - Sharp, Dark & High Contrast in Day Mode */}
+            <p
+              className={`text-[12px] leading-relaxed whitespace-pre-wrap select-text font-normal ${
+                isMe
+                  ? 'text-white font-medium'
+                  : isDay
+                  ? 'text-[#0f172a] font-medium'
+                  : 'text-slate-100 font-normal'
+              }`}
+            >
               {msg.message}
             </p>
 
+            {/* Timestamp & Badges */}
             <div
               className={`text-[8.5px] text-right mt-0.5 opacity-80 flex items-center justify-end gap-1 ${
                 isMe ? 'text-blue-100' : isDay ? 'text-slate-500 font-medium' : 'text-slate-400'
               }`}
             >
+              {isStarred && (
+                <span className="text-amber-400 text-[9px] leading-none" title="Pesan Berbintang">⭐</span>
+              )}
               {msg.is_edited && (
                 <span className="italic text-[8px] opacity-90">
                   (diedit)
@@ -282,7 +304,7 @@ export const SwipeableMessageItem: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Swipe Hint / Action Sheet Menu Modal */}
+      {/* Action Sheet Menu Modal */}
       {showMenu && (
         <div
           onClick={() => setShowMenu(false)}
@@ -303,6 +325,21 @@ export const SwipeableMessageItem: React.FC<Props> = ({
                 <X className="w-3 h-3" />
               </button>
             </div>
+
+            {/* Star / Unstar Option (Exclusive to Soe) */}
+            {canStar && onToggleStar && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMenu(false);
+                  onToggleStar(msg);
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-amber-300 hover:bg-slate-800/80 rounded-xl transition-colors cursor-pointer text-left font-medium"
+              >
+                <Star className={`w-3.5 h-3.5 ${isStarred ? 'fill-amber-400 text-amber-400' : 'text-amber-400'}`} />
+                <span>{isStarred ? 'Hapus Bintang' : 'Bintangi Pesan (Bookmark)'}</span>
+              </button>
+            )}
 
             {/* Edit Option (Only available for text messages sent by current user) */}
             {isMe && !isViewOnce && (

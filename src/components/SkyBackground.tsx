@@ -1,25 +1,19 @@
 import React, { useState, useEffect } from 'react';
 
-export type SkyTheme = 'auto' | 'day' | 'night';
-
-interface Props {
-  currentTheme?: SkyTheme;
-  onThemeChange?: (theme: SkyTheme) => void;
-}
-
-export const SkyBackground: React.FC<Props> = ({ currentTheme = 'auto' }) => {
+export const SkyBackground: React.FC = () => {
   const [currentHour, setCurrentHour] = useState<number>(() => new Date().getHours());
 
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentHour(new Date().getHours());
-    }, 60000); // Check every minute
+    }, 30000); // Check every 30s
     return () => clearInterval(timer);
   }, []);
 
-  const isDay =
-    currentTheme === 'day' ||
-    (currentTheme === 'auto' && currentHour >= 6 && currentHour < 18);
+  // 100% Fully Automatic based on user's local timezone:
+  // Daytime: 06:00 to 17:59
+  // Nighttime: 18:00 to 05:59
+  const isDay = currentHour >= 6 && currentHour < 18;
 
   return (
     <div className="fixed inset-0 w-full h-full pointer-events-none overflow-hidden select-none z-0">
@@ -129,38 +123,40 @@ export const SkyBackground: React.FC<Props> = ({ currentTheme = 'auto' }) => {
           !isDay ? 'opacity-100' : 'opacity-0'
         }`}
       >
-        {/* Soft Glowing Moon in Top-Right */}
-        <div className="absolute top-10 right-8 w-16 h-16 pointer-events-none animate-moon-glow">
-          <svg viewBox="0 0 100 100" fill="none" className="w-full h-full">
+        {/* Soft Glowing Full Moon in Top-Right (Bulat Sempurna & Indah) */}
+        <div className="absolute top-8 right-7 pointer-events-none animate-moon-glow flex items-center justify-center">
+          {/* Atmospheric Outer Halos */}
+          <div className="absolute w-24 h-24 rounded-full bg-amber-100/25 blur-xl scale-125" />
+          <div className="absolute w-32 h-32 rounded-full bg-yellow-200/15 blur-2xl scale-150" />
+
+          {/* Perfect Circular Full Moon using SVG for 100% geometrical roundness */}
+          <svg
+            viewBox="0 0 100 100"
+            className="w-14 h-14 aspect-square flex-none drop-shadow-[0_0_25px_rgba(254,240,138,0.85)]"
+          >
             <defs>
-              <linearGradient id="moonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#FEF9C3" />
-                <stop offset="50%" stopColor="#FDE047" />
-                <stop offset="100%" stopColor="#FACC15" />
-              </linearGradient>
+              <radialGradient id="fullMoonGrad" cx="35%" cy="35%" r="65%">
+                <stop offset="0%" stopColor="#FFFFFF" />
+                <stop offset="40%" stopColor="#FEF9C3" />
+                <stop offset="75%" stopColor="#FDE047" />
+                <stop offset="100%" stopColor="#F59E0B" />
+              </radialGradient>
             </defs>
-            {/* Crescent Moon */}
-            <path
-              d="M 65 15 
-                 C 40 25 25 50 30 75 
-                 C 35 90 50 100 65 100 
-                 C 40 95 20 70 20 45 
-                 C 20 28 35 12 55 5 
-                 C 59 4 63 12 65 15 Z"
-              fill="url(#moonGrad)"
-              transform="scale(0.85) translate(8, 0)"
-            />
+            {/* Perfectly Round Full Moon */}
+            <circle cx="50" cy="50" r="46" fill="url(#fullMoonGrad)" />
+            {/* Subtle soft craters */}
+            <circle cx="38" cy="38" r="8" fill="#B45309" opacity="0.10" />
+            <circle cx="62" cy="54" r="11" fill="#B45309" opacity="0.08" />
+            <circle cx="46" cy="66" r="7" fill="#B45309" opacity="0.07" />
+            <circle cx="66" cy="36" r="5" fill="#B45309" opacity="0.08" />
           </svg>
-          {/* Moon Atmospheric Halo */}
-          <div className="absolute inset-0 rounded-full bg-yellow-200/20 blur-xl" />
         </div>
 
         {/* Twinkling Stars */}
         <div className="absolute inset-0">
-          {/* Star Clusters with varied delays */}
           <div className="absolute top-[12%] left-[15%] w-2 h-2 rounded-full bg-amber-100 animate-twinkle-1 shadow-xs shadow-white" />
           <div className="absolute top-[18%] left-[45%] w-1.5 h-1.5 rounded-full bg-indigo-200 animate-twinkle-2" />
-          <div className="absolute top-[8%] left-[70%] w-2.5 h-2.5 rounded-full bg-yellow-100 animate-twinkle-3 shadow-xs shadow-amber-200" />
+          <div className="absolute top-[8%] left-[65%] w-2.5 h-2.5 rounded-full bg-yellow-100 animate-twinkle-3 shadow-xs shadow-amber-200" />
           <div className="absolute top-[26%] left-[82%] w-1.5 h-1.5 rounded-full bg-white animate-twinkle-1" />
           <div className="absolute top-[35%] left-[25%] w-2 h-2 rounded-full bg-amber-200 animate-twinkle-2" />
           <div className="absolute top-[22%] left-[10%] w-1.5 h-1.5 rounded-full bg-indigo-100 animate-twinkle-3" />
@@ -198,7 +194,7 @@ export const SkyBackground: React.FC<Props> = ({ currentTheme = 'auto' }) => {
         </div>
       </div>
 
-      {/* Subtle Readability Vignette: Ensures chat bubbles in foreground remain ultra readable */}
+      {/* Subtle Readability Vignette */}
       <div className="absolute inset-0 bg-radial from-transparent via-transparent to-black/15 pointer-events-none" />
     </div>
   );
