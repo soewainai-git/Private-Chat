@@ -12,7 +12,8 @@ import {
   Star,
   Plus,
   Film,
-  ChevronUp
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
@@ -160,6 +161,15 @@ export const ChatRoom: React.FC<Props> = ({
 
   const scrollToBottom = (smooth = true) => {
     scrollToBottomDirect(!smooth);
+  };
+
+  const [showScrollBottomBtn, setShowScrollBottomBtn] = useState<boolean>(false);
+
+  const handleMessagesScroll = () => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 280;
+    setShowScrollBottomBtn(!isNearBottom);
   };
 
   // Load recent messages (35 messages for lightning-fast performance) and sync to bottom reliably
@@ -771,6 +781,7 @@ export const ChatRoom: React.FC<Props> = ({
       {/* Messages Scroll Area - Optimized 60fps smooth hardware scrolling */}
       <div
         ref={messagesContainerRef}
+        onScroll={handleMessagesScroll}
         style={{ WebkitOverflowScrolling: 'touch', willChange: 'scroll-position' }}
         className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar overscroll-contain touch-pan-y"
       >
@@ -1079,6 +1090,23 @@ export const ChatRoom: React.FC<Props> = ({
           </button>
         </form>
       </footer>
+
+      {/* Floating Jump to Present (Scroll to Bottom) Button */}
+      {showScrollBottomBtn && (
+        <button
+          type="button"
+          onClick={() => scrollToBottom(true)}
+          aria-label="Kembali ke pesan terbaru"
+          title="Kembali ke pesan terbaru"
+          className={`fixed right-4 bottom-18 z-40 w-9 h-9 rounded-full flex items-center justify-center shadow-lg transition-all animate-bounce cursor-pointer active:scale-90 border ${
+            isDay
+              ? 'bg-white/95 text-slate-800 border-slate-200/90 shadow-sky-500/10'
+              : 'bg-slate-900/95 text-slate-200 border-slate-700/80 shadow-black/60'
+          }`}
+        >
+          <ChevronDown className="w-4 h-4" />
+        </button>
+      )}
 
       {/* View Once Photo Viewer Modal */}
       {activeViewOnce && activeViewOnce.viewonce_photo && (

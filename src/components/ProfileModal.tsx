@@ -152,16 +152,18 @@ export const ProfileModal: React.FC<Props> = ({
             </div>
           </div>
 
-          {/* Quick Upload Button on photo */}
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="absolute -bottom-2 -right-2 w-10 h-10 rounded-2xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-white shadow-md flex items-center justify-center cursor-pointer transition-all border-2 border-slate-900"
-            title="Pilih foto asli dari galeri HP"
-          >
-            <Camera className="w-4 h-4" />
-          </button>
+          {/* Quick Upload Button on photo (Exclusive to Soe) */}
+          {currentUser === 'Soe' && (
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="absolute -bottom-2 -right-2 w-10 h-10 rounded-2xl bg-sky-500 hover:bg-sky-400 active:scale-95 text-white shadow-md flex items-center justify-center cursor-pointer transition-all border-2 border-slate-900"
+              title="Pilih foto asli dari galeri HP"
+            >
+              <Camera className="w-4 h-4" />
+            </button>
+          )}
         </div>
 
         {/* Name and Status */}
@@ -198,34 +200,40 @@ export const ProfileModal: React.FC<Props> = ({
           </div>
         )}
 
-        {/* Action Button: Upload Real Photo from Phone */}
-        <div className="w-full flex flex-col gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            onChange={handleFileChange}
-            className="hidden"
-          />
+        {/* Action Button: Upload Real Photo from Phone (Exclusive to Soe) */}
+        {currentUser === 'Soe' ? (
+          <div className="w-full flex flex-col gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+              className="hidden"
+            />
 
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            disabled={isUploading}
-            className="w-full py-2.5 px-4 rounded-2xl bg-sky-500 hover:bg-sky-400 active:scale-98 text-white font-semibold text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
-          >
-            <Upload className="w-4 h-4" />
-            <span>
-              {isUploading
-                ? 'Mengunggah foto asli...'
-                : `Unggah Foto Asli ${selectedTarget} dari Galeri`}
-            </span>
-          </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="w-full py-2.5 px-4 rounded-2xl bg-sky-500 hover:bg-sky-400 active:scale-98 text-white font-semibold text-xs transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Upload className="w-4 h-4" />
+              <span>
+                {isUploading
+                  ? 'Mengunggah foto asli...'
+                  : `Unggah Foto Asli ${selectedTarget} dari Galeri`}
+              </span>
+            </button>
 
-          <p className="text-[10px] text-slate-500 text-center px-2 mt-1">
-            Foto disimpan aman dan privat di server penyimpanan pribadi kalian.
-          </p>
-        </div>
+            <p className="text-[10px] text-slate-500 text-center px-2 mt-1">
+              Foto disimpan aman dan privat di server penyimpanan pribadi kalian.
+            </p>
+          </div>
+        ) : (
+          <div className="w-full text-center py-2 px-3 rounded-2xl bg-slate-950/60 border border-slate-800/80 text-[11px] text-slate-400">
+            Foto profil dikelola secara eksklusif oleh Soe
+          </div>
+        )}
       </div>
     </div>
   );
