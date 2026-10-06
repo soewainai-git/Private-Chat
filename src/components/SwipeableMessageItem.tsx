@@ -118,7 +118,8 @@ export const SwipeableMessageItem: React.FC<Props> = ({
   return (
     <div
       id={`msg-${msg.id}`}
-      className={`relative flex flex-col ${isMe ? 'items-end' : 'items-start'} group w-full py-0.5 select-none animate-pop-in ${
+      style={{ contain: 'content' }}
+      className={`relative flex flex-col ${isMe ? 'items-end' : 'items-start'} group w-full py-0.5 select-none ${
         isHighlighted ? 'animate-highlight-pulse' : ''
       }`}
     >
@@ -140,13 +141,21 @@ export const SwipeableMessageItem: React.FC<Props> = ({
       </div>
 
       {!isMe && (
-        <span
-          className={`text-[9px] ml-1.5 mb-0.5 font-bold ${
-            isDay ? 'text-slate-800 drop-shadow-xs' : 'text-indigo-200'
-          }`}
-        >
-          {msg.name}
-        </span>
+        <div className="flex items-center gap-1.5 ml-1.5 mb-0.5">
+          <img
+            src={msg.name === 'Soe' ? '/avatars/soe.jpg' : '/avatars/haru.jpg'}
+            alt={msg.name}
+            className="w-3.5 h-3.5 rounded-full object-cover border border-sky-300/80 shadow-2xs"
+            loading="lazy"
+          />
+          <span
+            className={`text-[9.5px] font-bold ${
+              isDay ? 'text-slate-950 font-extrabold' : 'text-indigo-200'
+            }`}
+          >
+            {msg.name}
+          </span>
+        </div>
       )}
 
       {/* Message Bubble Container with gesture handling */}
@@ -186,14 +195,14 @@ export const SwipeableMessageItem: React.FC<Props> = ({
             }}
             className={`flex items-center gap-2.5 p-2.5 rounded-[20px] border transition-all ${
               isMe
-                ? `bg-slate-900/90 border-blue-400/30 text-slate-100 rounded-br-[4px] shadow-sm ${
+                ? `bg-slate-900 border-blue-400/30 text-slate-100 rounded-br-[4px] shadow-xs ${
                     msg.viewonce_opened ? 'border-blue-500/40 bg-blue-950/40' : 'cursor-default'
                   }`
                 : isDay
-                ? `bg-white/98 border-sky-100 text-slate-900 rounded-bl-[4px] shadow-[0_3px_12px_rgba(0,0,0,0.06)] backdrop-blur-md ${
+                ? `bg-white border-sky-100 text-slate-900 rounded-bl-[4px] shadow-xs ${
                     msg.viewonce_opened ? 'opacity-50 cursor-default' : 'hover:border-sky-300 active:scale-98 cursor-pointer'
                   }`
-                : `bg-[#18233c]/95 border-slate-700/60 text-slate-100 rounded-bl-[4px] shadow-[0_3px_12px_rgba(0,0,0,0.25)] backdrop-blur-md ${
+                : `bg-[#18233c] border-slate-700/60 text-slate-100 rounded-bl-[4px] shadow-xs ${
                     msg.viewonce_opened ? 'opacity-40 cursor-default' : 'hover:border-indigo-400 active:scale-98 cursor-pointer'
                   }`
             }`}
@@ -237,12 +246,12 @@ export const SwipeableMessageItem: React.FC<Props> = ({
           /* GIF / Looping Video Message Bubble - Large & Clean Cute Box */
           <div
             onDoubleClick={() => onReply(msg)}
-            className={`relative p-1.5 rounded-[22px] max-w-[270px] sm:max-w-[320px] transition-all shadow-md active:scale-[0.99] ${
+            className={`relative p-1.5 rounded-[22px] max-w-[270px] sm:max-w-[320px] transition-all shadow-xs active:scale-[0.99] ${
               isMe
-                ? 'bg-gradient-to-tr from-[#3b82f6] to-[#60a5fa] text-white rounded-br-[4px] shadow-[0_3px_12px_rgba(59,130,246,0.25)]'
+                ? 'bg-gradient-to-tr from-[#3b82f6] to-[#60a5fa] text-white rounded-br-[4px]'
                 : isDay
-                ? 'bg-white/98 text-[#0f172a] rounded-bl-[4px] border border-sky-100 shadow-[0_3px_12px_rgba(0,0,0,0.08)] backdrop-blur-md'
-                : 'bg-[#18233c]/95 text-slate-100 rounded-bl-[4px] border border-slate-700/60 shadow-[0_3px_12px_rgba(0,0,0,0.25)] backdrop-blur-md'
+                ? 'bg-white text-[#0f172a] rounded-bl-[4px] border border-sky-100 shadow-xs'
+                : 'bg-[#18233c] text-slate-100 rounded-bl-[4px] border border-slate-700/60 shadow-xs'
             }`}
           >
             {/* Quoted Reply if present */}
@@ -309,15 +318,15 @@ export const SwipeableMessageItem: React.FC<Props> = ({
             </div>
           </div>
         ) : (
-          /* Normal Text Message Bubble - Soft Cute Pillowy Design */
+          /* Normal Text Message Bubble - Soft Cute Pillowy Design (Optimized 60fps) */
           <div
             onDoubleClick={() => onReply(msg)}
             className={`relative px-3.5 py-2 rounded-[22px] text-xs break-words transition-all active:scale-[0.99] ${
               isMe
-                ? 'bg-gradient-to-tr from-[#3b82f6] to-[#60a5fa] text-white rounded-br-[4px] shadow-[0_3px_12px_rgba(59,130,246,0.22)]'
+                ? 'bg-gradient-to-tr from-[#3b82f6] to-[#60a5fa] text-white rounded-br-[4px] shadow-xs'
                 : isDay
-                ? 'bg-white/98 text-[#0f172a] rounded-bl-[4px] border border-sky-100 shadow-[0_3px_12px_rgba(0,0,0,0.06)] backdrop-blur-md'
-                : 'bg-[#18233c]/95 text-slate-100 rounded-bl-[4px] border border-slate-700/60 shadow-[0_3px_12px_rgba(0,0,0,0.25)] backdrop-blur-md'
+                ? 'bg-white text-[#0f172a] rounded-bl-[4px] border border-sky-100/80 shadow-xs'
+                : 'bg-[#18233c] text-slate-100 rounded-bl-[4px] border border-slate-700/60 shadow-xs'
             }`}
           >
             {/* Quoted Reply if present */}

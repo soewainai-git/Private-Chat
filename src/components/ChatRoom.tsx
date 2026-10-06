@@ -85,10 +85,6 @@ export const ChatRoom: React.FC<Props> = ({
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
   const [showAttachMenu, setShowAttachMenu] = useState<boolean>(false);
 
-  // Soe Exclusive: Load More Messages State
-  const [loadingMore, setLoadingMore] = useState<boolean>(false);
-  const [hasMore, setHasMore] = useState<boolean>(true);
-
   // Presence states
   const [partnerLastSeen, setPartnerLastSeen] = useState<string | null>(null);
   const [partnerIsOnline, setPartnerIsOnline] = useState<boolean>(false);
@@ -98,6 +94,7 @@ export const ChatRoom: React.FC<Props> = ({
 
   const fileInputPhotoRef = useRef<HTMLInputElement>(null);
   const fileInputMediaRef = useRef<HTMLInputElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const partnerName: UserIdentity = currentUser === 'Soe' ? 'Haru' : 'Soe';
@@ -116,15 +113,34 @@ export const ChatRoom: React.FC<Props> = ({
     }
   };
 
-  const scrollToBottom = (smooth = true) => {
-    messagesEndRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto' });
+  const scrollToBottomDirect = (instant = false) => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight + 10000,
+        behavior: instant ? 'auto' : 'smooth',
+      });
+    }
+    messagesEndRef.current?.scrollIntoView({
+      behavior: instant ? 'auto' : 'smooth',
+      block: 'end',
+    });
   };
 
-  // Load initial messages and sync
+  const scrollToBottom = (smooth = true) => {
+    scrollToBottomDirect(!smooth);
+  };
+
+  // Load all messages (loss chat) and sync to bottom reliably
   useEffect(() => {
     fetchMessages().then(data => {
       setMessages(data);
-      setTimeout(() => scrollToBottom(false), 80);
+      // Multi-pass initial scrolling prevents stopping in the middle due to late reflows
+      scrollToBottomDirect(true);
+      requestAnimationFrame(() => scrollToBottomDirect(true));
+      setTimeout(() => scrollToBottomDirect(true), 60);
+      setTimeout(() => scrollToBottomDirect(true), 180);
+      setTimeout(() => scrollToBottomDirect(true), 400);
+      setTimeout(() => scrollToBottomDirect(true), 800);
     });
 
     // Check partner's last seen
@@ -265,51 +281,17 @@ export const ChatRoom: React.FC<Props> = ({
     });
   };
 
-  const handleJumpToMessage = async (msgId: string) => {
+  const handleJumpToMessage = (msgId: string) => {
     setShowStarredModal(false);
 
-    let el = document.getElementById('msg-' + msgId);
-    if (!el) {
-      // If message is in older history, fetch expanded batch
-      setLoadingMore(true);
-      try {
-        const expanded = await fetchMessages(180, 0);
-        setMessages(expanded);
-        await new Promise(r => setTimeout(r, 120));
-        el = document.getElementById('msg-' + msgId);
-      } finally {
-        setLoadingMore(false);
+    setTimeout(() => {
+      const el = document.getElementById('msg-' + msgId);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setHighlightedMsgId(msgId);
+        setTimeout(() => setHighlightedMsgId(null), 2500);
       }
-    }
-
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      setHighlightedMsgId(msgId);
-      setTimeout(() => setHighlightedMsgId(null), 2500);
-    }
-  };
-
-  const handleLoadMore = async () => {
-    if (loadingMore) return;
-    setLoadingMore(true);
-    try {
-      const older = await fetchMessages(60, messages.length);
-      if (!older || older.length === 0) {
-        setHasMore(false);
-      } else {
-        setMessages(prev => {
-          const existingIds = new Set(prev.map(m => m.id));
-          const filtered = older.filter(m => !existingIds.has(m.id));
-          if (filtered.length === 0) {
-            setHasMore(false);
-            return prev;
-          }
-          return [...filtered, ...prev];
-        });
-      }
-    } finally {
-      setLoadingMore(false);
-    }
+    }, 80);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -481,19 +463,24 @@ export const ChatRoom: React.FC<Props> = ({
             <ArrowLeft className="w-3.5 h-3.5" />
           </button>
 
-          {/* Partner Avatar */}
+          {/* Partner Avatar with Real Photo */}
           <div className="relative flex-none">
             <div
-              className={`w-7 h-7 rounded-full border flex items-center justify-center text-[11px] font-bold ${
+              className={`w-8 h-8 rounded-full border-2 overflow-hidden flex items-center justify-center ${
                 isDay
-                  ? 'bg-sky-100 text-sky-800 border-sky-300 shadow-xs'
-                  : 'bg-indigo-950 text-indigo-200 border-indigo-700/60'
+                  ? 'border-sky-300 shadow-xs bg-sky-100'
+                  : 'border-indigo-500/70 bg-indigo-950'
               }`}
             >
-              {partnerName.slice(0, 1)}
+              <img
+                src={partnerName === 'Soe' ? '/avatars/soe.jpg' : '/avatars/haru.jpg'}
+                alt={partnerName}
+                className="w-full h-full object-cover"
+                loading="eager"
+              />
             </div>
             <span
-              className={`absolute bottom-0 right-0 w-2 h-2 rounded-full ring-2 ${
+              className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ${
                 isDay ? 'ring-white' : 'ring-[#0c1324]'
               } ${
                 partnerIsOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'
@@ -504,8 +491,8 @@ export const ChatRoom: React.FC<Props> = ({
           {/* Partner Info */}
           <div className="min-w-0">
             <h2
-              className={`text-xs font-bold truncate leading-snug ${
-                isDay ? 'text-slate-850' : 'text-slate-100'
+              className={`text-xs font-black truncate leading-snug tracking-tight ${
+                isDay ? 'text-black' : 'text-white'
               }`}
             >
               {partnerName}
@@ -513,19 +500,19 @@ export const ChatRoom: React.FC<Props> = ({
 
             <p className="text-[10px] truncate leading-tight">
               {partnerTyping ? (
-                <span className="text-blue-500 font-semibold italic animate-pulse">
+                <span className="text-blue-600 font-bold italic animate-pulse">
                   mengetik...
                 </span>
               ) : partnerIsOnline ? (
-                <span className="text-emerald-500 font-semibold">
+                <span className={isDay ? 'text-emerald-700 font-bold' : 'text-emerald-400 font-semibold'}>
                   Online
                 </span>
               ) : partnerLastSeen ? (
-                <span className={isDay ? 'text-slate-600 font-medium' : 'text-slate-400'}>
+                <span className={isDay ? 'text-slate-800 font-semibold' : 'text-slate-300 font-normal'}>
                   Offline • {formatTime(partnerLastSeen)}
                 </span>
               ) : (
-                <span className={isDay ? 'text-slate-500' : 'text-slate-500'}>Offline</span>
+                <span className={isDay ? 'text-slate-700 font-medium' : 'text-slate-400'}>Offline</span>
               )}
             </p>
           </div>
@@ -660,30 +647,12 @@ export const ChatRoom: React.FC<Props> = ({
         </div>
       )}
 
-      {/* Messages Scroll Area - Compact gap & locked viewport bounce */}
-      <div className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar overscroll-contain touch-pan-y">
-        {/* Soe Exclusive: Load More Messages Button */}
-        {currentUser === 'Soe' && hasMore && (
-          <div className="flex justify-center pt-1 pb-1">
-            <button
-              type="button"
-              onClick={handleLoadMore}
-              disabled={loadingMore}
-              className={`px-3 py-1 rounded-full text-[10px] font-semibold transition-all shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95 ${
-                isDay
-                  ? 'bg-white/90 text-slate-800 hover:bg-white border border-sky-200/80 shadow-xs'
-                  : 'bg-slate-850/90 text-slate-200 hover:bg-slate-800 border border-slate-700/60 shadow-xs'
-              }`}
-            >
-              {loadingMore ? (
-                <span className="animate-pulse">Memuat pesan...</span>
-              ) : (
-                <span>Muat Pesan Sebelumnya ⏳</span>
-              )}
-            </button>
-          </div>
-        )}
-
+      {/* Messages Scroll Area - Optimized 60fps smooth hardware scrolling */}
+      <div
+        ref={messagesContainerRef}
+        style={{ WebkitOverflowScrolling: 'touch', willChange: 'scroll-position' }}
+        className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar overscroll-contain touch-pan-y"
+      >
         {messages.map((msg) => (
           <SwipeableMessageItem
             key={msg.id}
