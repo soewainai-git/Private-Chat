@@ -9,7 +9,10 @@ import {
   Bell,
   Pencil,
   Check,
-  Smile
+  Smile,
+  Sun,
+  Moon,
+  CloudSun
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
@@ -32,17 +35,22 @@ import {
 import { ViewOnceModal } from './ViewOnceModal';
 import { SwipeableMessageItem } from './SwipeableMessageItem';
 import { EmojiPicker } from './EmojiPicker';
+import { SkyTheme } from './SkyBackground';
 
 interface Props {
   currentUser: UserIdentity;
   onLock: () => void;
   triggerPrivacyAlert: (msg: string) => void;
+  skyTheme?: SkyTheme;
+  onSkyThemeChange?: (theme: SkyTheme) => void;
 }
 
 export const ChatRoom: React.FC<Props> = ({
   currentUser,
   onLock,
   triggerPrivacyAlert,
+  skyTheme = 'auto',
+  onSkyThemeChange,
 }) => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputText, setInputText] = useState('');
@@ -50,6 +58,17 @@ export const ChatRoom: React.FC<Props> = ({
   const [editingMessage, setEditingMessage] = useState<ChatMessage | null>(null);
   const [showEmojiPicker, setShowEmojiPicker] = useState<boolean>(false);
   const [activeViewOnce, setActiveViewOnce] = useState<ChatMessage | null>(null);
+
+  // Dynamic Day/Night check
+  const [currentHour, setCurrentHour] = useState<number>(() => new Date().getHours());
+  useEffect(() => {
+    const t = setInterval(() => setCurrentHour(new Date().getHours()), 60000);
+    return () => clearInterval(t);
+  }, []);
+
+  const isDay =
+    skyTheme === 'day' ||
+    (skyTheme === 'auto' && currentHour >= 6 && currentHour < 18);
 
   // Presence states
   const [partnerLastSeen, setPartnerLastSeen] = useState<string | null>(null);
@@ -265,58 +284,111 @@ export const ChatRoom: React.FC<Props> = ({
   };
 
   return (
-    <div className="flex-1 w-full h-full flex flex-col bg-[#0b0f17] text-slate-100 select-none overflow-hidden relative">
-      {/* Compact Top Header - Fixed & Locked */}
-      <header className="flex-none h-13 bg-[#0f141f] border-b border-slate-800/80 px-3 flex items-center justify-between z-30 shadow-sm sticky top-0">
+    <div className="flex-1 w-full h-full flex flex-col bg-transparent text-slate-100 select-none overflow-hidden relative">
+      {/* Compact Top Header - Frosted Glass & Responsive to Sky Theme */}
+      <header
+        className={`flex-none h-13 border-b px-3 flex items-center justify-between z-30 shadow-xs sticky top-0 transition-colors duration-500 ${
+          isDay
+            ? 'bg-white/75 backdrop-blur-md border-white/60 text-slate-850 shadow-xs'
+            : 'bg-[#0c1324]/80 backdrop-blur-md border-slate-800/80 text-slate-100'
+        }`}
+      >
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={onLock}
             aria-label="Kunci"
-            className="w-7 h-7 rounded-full bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              isDay
+                ? 'bg-white/80 hover:bg-white text-slate-700 shadow-xs border border-slate-200/50'
+                : 'bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
           >
             <ArrowLeft className="w-3.5 h-3.5" />
           </button>
 
           {/* Partner Avatar */}
           <div className="relative flex-none">
-            <div className="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-[11px] font-semibold text-slate-200">
+            <div
+              className={`w-7 h-7 rounded-full border flex items-center justify-center text-[11px] font-bold ${
+                isDay
+                  ? 'bg-sky-100 text-sky-800 border-sky-300 shadow-xs'
+                  : 'bg-indigo-950 text-indigo-200 border-indigo-700/60'
+              }`}
+            >
               {partnerName.slice(0, 1)}
             </div>
             <span
-              className={`absolute bottom-0 right-0 w-2 h-2 rounded-full ring-2 ring-[#0f141f] ${
-                partnerIsOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-600'
+              className={`absolute bottom-0 right-0 w-2 h-2 rounded-full ring-2 ${
+                isDay ? 'ring-white' : 'ring-[#0c1324]'
+              } ${
+                partnerIsOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-500'
               }`}
             />
           </div>
 
           {/* Partner Info */}
           <div className="min-w-0">
-            <h2 className="text-xs font-semibold text-slate-100 truncate leading-snug">
+            <h2
+              className={`text-xs font-bold truncate leading-snug ${
+                isDay ? 'text-slate-850' : 'text-slate-100'
+              }`}
+            >
               {partnerName}
             </h2>
 
             <p className="text-[10px] truncate leading-tight">
               {partnerTyping ? (
-                <span className="text-blue-400 font-medium italic animate-pulse">
+                <span className="text-blue-500 font-semibold italic animate-pulse">
                   mengetik...
                 </span>
               ) : partnerIsOnline ? (
-                <span className="text-emerald-400 font-medium">
+                <span className="text-emerald-500 font-semibold">
                   Online
                 </span>
               ) : partnerLastSeen ? (
-                <span className="text-slate-400">
+                <span className={isDay ? 'text-slate-600 font-medium' : 'text-slate-400'}>
                   Offline • {formatTime(partnerLastSeen)}
                 </span>
               ) : (
-                <span className="text-slate-500">Offline</span>
+                <span className={isDay ? 'text-slate-500' : 'text-slate-500'}>Offline</span>
               )}
             </p>
           </div>
         </div>
 
-        {/* Right Header Actions - Clean & Minimalist */}
+        {/* Right Header Actions */}
         <div className="flex items-center gap-1.5">
+          {/* Sky Theme Switcher: Auto / Day / Night */}
+          {onSkyThemeChange && (
+            <button
+              onClick={() => {
+                const next: SkyTheme = skyTheme === 'auto' ? 'day' : skyTheme === 'day' ? 'night' : 'auto';
+                onSkyThemeChange(next);
+              }}
+              title={
+                skyTheme === 'auto'
+                  ? `Suasana: Waktu Nyata (${isDay ? 'Siang' : 'Malam'})`
+                  : skyTheme === 'day'
+                  ? 'Suasana: Siang (Awan Bergerak)'
+                  : 'Suasana: Malam (Bulan & Bintang)'
+              }
+              aria-label="Ubah Suasana Langit"
+              className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer ${
+                isDay
+                  ? 'bg-white/85 hover:bg-white text-amber-500 border border-amber-200/80 shadow-xs'
+                  : 'bg-slate-850 hover:bg-slate-800 text-indigo-300 border border-indigo-900/60'
+              }`}
+            >
+              {skyTheme === 'auto' ? (
+                <CloudSun className="w-3.5 h-3.5 text-sky-500" />
+              ) : skyTheme === 'day' ? (
+                <Sun className="w-3.5 h-3.5 text-amber-500" />
+              ) : (
+                <Moon className="w-3.5 h-3.5 text-indigo-300" />
+              )}
+            </button>
+          )}
+
           <button
             onClick={async () => {
               if (notifPermission !== 'granted') {
@@ -331,9 +403,13 @@ export const ChatRoom: React.FC<Props> = ({
             }}
             aria-label="Notifikasi"
             title={notifPermission === 'granted' ? 'Notifikasi Aktif' : 'Aktifkan Notifikasi'}
-            className="w-7 h-7 rounded-full bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center transition-colors cursor-pointer relative"
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer relative ${
+              isDay
+                ? 'bg-white/80 hover:bg-white text-slate-700 border border-slate-200/50 shadow-xs'
+                : 'bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
           >
-            <Bell className={`w-3.5 h-3.5 ${notifPermission === 'granted' ? 'text-blue-400' : 'text-slate-400'}`} />
+            <Bell className={`w-3.5 h-3.5 ${notifPermission === 'granted' ? 'text-blue-500' : isDay ? 'text-slate-600' : 'text-slate-400'}`} />
             {notifPermission !== 'granted' && (
               <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
             )}
@@ -343,9 +419,13 @@ export const ChatRoom: React.FC<Props> = ({
             onClick={() => setShowSecurityInfo(true)}
             aria-label="Keamanan"
             title="Info Keamanan"
-            className="w-7 h-7 rounded-full bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center transition-colors cursor-pointer"
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-colors cursor-pointer ${
+              isDay
+                ? 'bg-white/80 hover:bg-white text-emerald-600 border border-slate-200/50 shadow-xs'
+                : 'bg-slate-850 hover:bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
           >
-            <Shield className="w-3.5 h-3.5 text-emerald-400" />
+            <Shield className="w-3.5 h-3.5 text-emerald-500" />
           </button>
         </div>
       </header>
@@ -449,6 +529,7 @@ export const ChatRoom: React.FC<Props> = ({
             isMe={msg.name === currentUser}
             partnerName={partnerName}
             formatTime={formatTime}
+            isDay={isDay}
             onReply={(targetMsg) => {
               setReplyTo({
                 name: targetMsg.name,
@@ -468,24 +549,45 @@ export const ChatRoom: React.FC<Props> = ({
 
       {/* Typing Indicator bottom */}
       {partnerTyping && (
-        <div className="flex-none px-3 py-1 text-[11px] text-slate-400 italic flex items-center gap-1.5 animate-fade-in">
+        <div
+          className={`flex-none px-3 py-1 text-[11px] italic flex items-center gap-1.5 animate-fade-in ${
+            isDay ? 'text-sky-950 font-medium drop-shadow-xs' : 'text-indigo-200'
+          }`}
+        >
           <span>{partnerName} sedang mengetik</span>
           <span className="flex gap-1 items-center">
-            <span className="w-1 h-1 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '0ms' }}></span>
-            <span className="w-1 h-1 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '150ms' }}></span>
-            <span className="w-1 h-1 rounded-full bg-slate-500 animate-bounce" style={{ animationDelay: '300ms' }}></span>
+            <span
+              className={`w-1 h-1 rounded-full animate-bounce ${isDay ? 'bg-sky-700' : 'bg-indigo-400'}`}
+              style={{ animationDelay: '0ms' }}
+            ></span>
+            <span
+              className={`w-1 h-1 rounded-full animate-bounce ${isDay ? 'bg-sky-700' : 'bg-indigo-400'}`}
+              style={{ animationDelay: '150ms' }}
+            ></span>
+            <span
+              className={`w-1 h-1 rounded-full animate-bounce ${isDay ? 'bg-sky-700' : 'bg-indigo-400'}`}
+              style={{ animationDelay: '300ms' }}
+            ></span>
           </span>
         </div>
       )}
 
       {/* Editing Message Banner */}
       {editingMessage && (
-        <div className="flex-none mx-2.5 mb-1 px-2.5 py-1.5 bg-blue-950/80 border-l-2 border-blue-400 rounded-r-lg flex items-center justify-between text-xs animate-fade-in shadow-xs">
+        <div
+          className={`flex-none mx-2.5 mb-1 px-2.5 py-1.5 border-l-2 rounded-r-lg flex items-center justify-between text-xs animate-fade-in shadow-xs ${
+            isDay
+              ? 'bg-blue-50/95 border-blue-500 text-blue-900 shadow-xs'
+              : 'bg-blue-950/80 border-blue-400 text-blue-200 shadow-xs'
+          }`}
+        >
           <div className="min-w-0 pr-2 flex items-center gap-2">
-            <Pencil className="w-3.5 h-3.5 text-blue-400 flex-none" />
+            <Pencil className="w-3.5 h-3.5 text-blue-500 flex-none" />
             <div className="min-w-0">
-              <p className="font-semibold text-blue-400 text-[10px]">Mengedit pesan</p>
-              <p className="text-slate-300 truncate text-[10px]">{editingMessage.message}</p>
+              <p className="font-semibold text-blue-500 text-[10px]">Mengedit pesan</p>
+              <p className={`truncate text-[10px] ${isDay ? 'text-slate-700 font-medium' : 'text-slate-300'}`}>
+                {editingMessage.message}
+              </p>
             </div>
           </div>
           <button
@@ -493,7 +595,11 @@ export const ChatRoom: React.FC<Props> = ({
               setEditingMessage(null);
               setInputText('');
             }}
-            className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center cursor-pointer flex-none"
+            className={`w-5 h-5 rounded-full flex items-center justify-center cursor-pointer flex-none ${
+              isDay
+                ? 'bg-blue-100 text-slate-600 hover:text-slate-900'
+                : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
           >
             <X className="w-3 h-3" />
           </button>
@@ -502,14 +608,26 @@ export const ChatRoom: React.FC<Props> = ({
 
       {/* Quoted Reply Banner */}
       {replyTo && (
-        <div className="flex-none mx-2.5 mb-1 px-2.5 py-1.5 bg-slate-900 border-l-2 border-blue-500 rounded-r-lg flex items-center justify-between text-xs animate-fade-in shadow-xs">
+        <div
+          className={`flex-none mx-2.5 mb-1 px-2.5 py-1.5 border-l-2 rounded-r-lg flex items-center justify-between text-xs animate-fade-in shadow-xs ${
+            isDay
+              ? 'bg-white/95 border-sky-500 text-slate-800 shadow-xs'
+              : 'bg-slate-900/90 border-blue-500 text-slate-200 shadow-xs'
+          }`}
+        >
           <div className="min-w-0 pr-2">
-            <p className="font-semibold text-blue-400 text-[10px]">Membalas {replyTo.name}</p>
-            <p className="text-slate-400 truncate max-w-[210px] sm:max-w-md text-[10px]">{replyTo.message}</p>
+            <p className="font-semibold text-sky-600 text-[10px]">Membalas {replyTo.name}</p>
+            <p className={`truncate max-w-[210px] sm:max-w-md text-[10px] ${isDay ? 'text-slate-600' : 'text-slate-400'}`}>
+              {replyTo.message}
+            </p>
           </div>
           <button
             onClick={() => setReplyTo(null)}
-            className="w-5 h-5 rounded-full bg-slate-800 text-slate-400 hover:text-slate-200 flex items-center justify-center cursor-pointer flex-none"
+            className={`w-5 h-5 rounded-full flex items-center justify-center cursor-pointer flex-none ${
+              isDay
+                ? 'bg-slate-100 text-slate-500 hover:text-slate-800'
+                : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+            }`}
           >
             <X className="w-3 h-3" />
           </button>
@@ -528,7 +646,13 @@ export const ChatRoom: React.FC<Props> = ({
       )}
 
       {/* Compact Bottom Input Bar */}
-      <footer className="flex-none p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] bg-[#0f141f] border-t border-slate-800/80">
+      <footer
+        className={`flex-none p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] border-t transition-colors duration-500 ${
+          isDay
+            ? 'bg-white/75 backdrop-blur-lg border-white/50 shadow-md'
+            : 'bg-[#0a101d]/85 backdrop-blur-lg border-slate-800/80 shadow-md'
+        }`}
+      >
         <form onSubmit={handleSendMessage} className="flex items-center gap-1.5">
           <input
             ref={fileInputRef}
@@ -547,7 +671,9 @@ export const ChatRoom: React.FC<Props> = ({
               className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all active:scale-95 cursor-pointer flex-none ${
                 showEmojiPicker
                   ? 'bg-amber-500/20 border-amber-500/40 text-amber-400 ring-2 ring-amber-400/20'
-                  : 'bg-slate-850 hover:bg-slate-800 active:bg-slate-750 text-amber-400 border-slate-750 shadow-xs'
+                  : isDay
+                  ? 'bg-white/90 hover:bg-white text-amber-500 border-amber-200/80 shadow-xs'
+                  : 'bg-slate-850 hover:bg-slate-800 text-amber-400 border-slate-750 shadow-xs'
               }`}
             >
               <Smile className="w-4 h-4" />
@@ -557,10 +683,14 @@ export const ChatRoom: React.FC<Props> = ({
               type="button"
               onClick={() => fileInputRef.current?.click()}
               title="Kirim Foto Sekali Lihat (1X)"
-              className="w-8 h-8 rounded-full bg-slate-850 hover:bg-slate-800 active:bg-slate-750 text-slate-300 flex items-center justify-center border border-slate-750 transition-transform active:scale-95 cursor-pointer flex-none relative"
+              className={`w-8 h-8 rounded-full flex items-center justify-center border transition-transform active:scale-95 cursor-pointer flex-none relative ${
+                isDay
+                  ? 'bg-white/90 hover:bg-white text-slate-700 border-sky-200/80 shadow-xs'
+                  : 'bg-slate-850 hover:bg-slate-800 text-slate-300 border-slate-750'
+              }`}
             >
               <Camera className="w-3.5 h-3.5" />
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 text-white font-bold text-[8px] flex items-center justify-center border border-[#0f141f]">
+              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 text-white font-bold text-[8px] flex items-center justify-center border border-white">
                 1
               </span>
             </button>
@@ -576,7 +706,11 @@ export const ChatRoom: React.FC<Props> = ({
             placeholder={editingMessage ? "Edit pesan Anda..." : "Ketik pesan..."}
             maxLength={500}
             autoComplete="off"
-            className="flex-1 bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-full px-3.5 py-1.5 text-[15px] sm:text-xs text-slate-100 placeholder-slate-500 outline-none transition-colors"
+            className={`flex-1 rounded-full px-3.5 py-1.5 text-[15px] sm:text-xs outline-none transition-colors ${
+              isDay
+                ? 'bg-white/95 border border-sky-200/80 focus:border-sky-500 text-slate-800 placeholder-slate-400 shadow-xs'
+                : 'bg-slate-900 border border-slate-800 focus:border-indigo-500 text-slate-100 placeholder-slate-500'
+            }`}
           />
 
           <button
@@ -587,7 +721,7 @@ export const ChatRoom: React.FC<Props> = ({
             className={`w-8 h-8 rounded-full ${
               editingMessage
                 ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                : 'bg-blue-600 hover:bg-blue-500 text-white'
+                : 'bg-gradient-to-r from-sky-500 to-blue-600 hover:from-sky-400 hover:to-blue-500 text-white shadow-sm shadow-sky-500/25'
             } disabled:opacity-40 flex items-center justify-center transition-all active:scale-95 cursor-pointer flex-none shadow-sm`}
           >
             {editingMessage ? (

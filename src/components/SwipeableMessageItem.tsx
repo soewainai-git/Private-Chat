@@ -7,6 +7,7 @@ interface Props {
   isMe: boolean;
   partnerName: UserIdentity;
   formatTime: (iso: string) => string;
+  isDay?: boolean;
   onReply: (msg: ChatMessage) => void;
   onEdit: (msg: ChatMessage) => void;
   onOpenViewOnce: (msg: ChatMessage) => void;
@@ -17,6 +18,7 @@ export const SwipeableMessageItem: React.FC<Props> = ({
   isMe,
   partnerName,
   formatTime,
+  isDay = true,
   onReply,
   onEdit,
   onOpenViewOnce,
@@ -121,7 +123,11 @@ export const SwipeableMessageItem: React.FC<Props> = ({
       </div>
 
       {!isMe && (
-        <span className="text-[9px] font-medium text-slate-500 ml-1 mb-0.5">
+        <span
+          className={`text-[9px] font-semibold ml-1 mb-0.5 ${
+            isDay ? 'text-slate-800 drop-shadow-xs font-bold' : 'text-indigo-200'
+          }`}
+        >
           {msg.name}
         </span>
       )}
@@ -144,7 +150,9 @@ export const SwipeableMessageItem: React.FC<Props> = ({
             type="button"
             onClick={() => setShowMenu(true)}
             aria-label="Opsi pesan"
-            className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-300 transition-opacity cursor-pointer"
+            className={`opacity-0 group-hover:opacity-100 p-1 transition-opacity cursor-pointer ${
+              isDay ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+            }`}
           >
             <MoreVertical className="w-3 h-3" />
           </button>
@@ -161,15 +169,21 @@ export const SwipeableMessageItem: React.FC<Props> = ({
             }}
             className={`flex items-center gap-2.5 p-2.5 rounded-xl border transition-all ${
               isMe
-                ? `bg-slate-850 border-slate-750 text-slate-100 rounded-br-xs ${
+                ? `bg-slate-900/85 border-blue-400/40 text-slate-100 rounded-br-xs ${
                     msg.viewonce_opened
-                      ? 'border-blue-500/40 bg-blue-950/20'
+                      ? 'border-blue-400/60 bg-blue-950/40'
                       : 'cursor-default'
                   }`
-                : `bg-slate-900 border-slate-800 text-slate-100 rounded-bl-xs ${
+                : isDay
+                ? `bg-white/92 border-sky-200/80 text-slate-850 rounded-bl-xs backdrop-blur-md ${
+                    msg.viewonce_opened
+                      ? 'opacity-50 cursor-default'
+                      : 'hover:border-sky-400 active:scale-98 shadow-sm cursor-pointer'
+                  }`
+                : `bg-[#131b31]/92 border-slate-750 text-slate-100 rounded-bl-xs backdrop-blur-md ${
                     msg.viewonce_opened
                       ? 'opacity-40 cursor-default'
-                      : 'hover:border-slate-600 active:scale-98 shadow-sm cursor-pointer'
+                      : 'hover:border-indigo-400 active:scale-98 shadow-sm cursor-pointer'
                   }`
             }`}
           >
@@ -181,7 +195,7 @@ export const SwipeableMessageItem: React.FC<Props> = ({
                     : 'border-slate-500 text-slate-400'
                   : msg.viewonce_opened
                   ? 'border-slate-500 text-slate-500'
-                  : 'border-blue-400 text-blue-400'
+                  : 'border-blue-500 text-blue-500'
               }`}
             >
               1
@@ -194,7 +208,7 @@ export const SwipeableMessageItem: React.FC<Props> = ({
                   <CheckCheck className="w-3 h-3 text-blue-400 inline" />
                 )}
               </p>
-              <p className="text-[9px] text-slate-400">
+              <p className={`text-[9px] ${isDay && !isMe ? 'text-slate-600' : 'text-slate-400'}`}>
                 {isMe
                   ? msg.viewonce_opened
                     ? `Dibuka oleh ${partnerName}`
@@ -211,8 +225,10 @@ export const SwipeableMessageItem: React.FC<Props> = ({
             onDoubleClick={() => onReply(msg)}
             className={`relative px-3 py-1.5 rounded-xl shadow-xs text-xs break-words transition-all active:scale-[0.99] ${
               isMe
-                ? 'bg-blue-600 text-white rounded-br-xs'
-                : 'bg-slate-850 text-slate-100 rounded-bl-xs border border-slate-800'
+                ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white rounded-br-xs shadow-sm shadow-sky-500/25'
+                : isDay
+                ? 'bg-white/94 text-slate-850 rounded-bl-xs border border-white/80 shadow-sm backdrop-blur-sm'
+                : 'bg-[#131b31]/92 text-slate-100 rounded-bl-xs border border-slate-700/60 shadow-sm backdrop-blur-sm'
             }`}
           >
             {/* Quoted Reply if present */}
@@ -220,8 +236,10 @@ export const SwipeableMessageItem: React.FC<Props> = ({
               <div
                 className={`mb-1 px-2 py-1 rounded-md text-[10px] border-l-2 max-w-[220px] sm:max-w-xs overflow-hidden ${
                   isMe
-                    ? 'bg-blue-700/60 border-blue-300 text-blue-100'
-                    : 'bg-slate-900/80 border-slate-500 text-slate-300'
+                    ? 'bg-blue-700/60 border-blue-200 text-blue-50'
+                    : isDay
+                    ? 'bg-sky-50/90 border-sky-400 text-slate-700'
+                    : 'bg-slate-900/80 border-indigo-400 text-slate-300'
                 }`}
               >
                 <p className="font-semibold text-[9px] opacity-85 truncate">{msg.reply_name}</p>
@@ -229,17 +247,17 @@ export const SwipeableMessageItem: React.FC<Props> = ({
               </div>
             )}
 
-            <p className="text-[12px] leading-relaxed whitespace-pre-wrap">
+            <p className="text-[12px] leading-relaxed whitespace-pre-wrap font-normal">
               {msg.message}
             </p>
 
             <div
-              className={`text-[8.5px] text-right mt-0.5 opacity-75 flex items-center justify-end gap-1 ${
-                isMe ? 'text-blue-100' : 'text-slate-400'
+              className={`text-[8.5px] text-right mt-0.5 opacity-80 flex items-center justify-end gap-1 ${
+                isMe ? 'text-blue-100' : isDay ? 'text-slate-500 font-medium' : 'text-slate-400'
               }`}
             >
               {msg.is_edited && (
-                <span className="italic text-[8px] opacity-85 text-blue-200 dark:text-slate-400">
+                <span className="italic text-[8px] opacity-90">
                   (diedit)
                 </span>
               )}
@@ -255,7 +273,9 @@ export const SwipeableMessageItem: React.FC<Props> = ({
             type="button"
             onClick={() => setShowMenu(true)}
             aria-label="Opsi pesan"
-            className="opacity-0 group-hover:opacity-100 p-1 text-slate-500 hover:text-slate-300 transition-opacity cursor-pointer"
+            className={`opacity-0 group-hover:opacity-100 p-1 transition-opacity cursor-pointer ${
+              isDay ? 'text-slate-600 hover:text-slate-900' : 'text-slate-400 hover:text-slate-200'
+            }`}
           >
             <MoreVertical className="w-3 h-3" />
           </button>

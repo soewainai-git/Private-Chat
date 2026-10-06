@@ -61,7 +61,7 @@ export const PinGate: React.FC<Props> = ({ onUnlock }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col items-center justify-between p-4 bg-[#0b0f17] text-slate-100 select-none overflow-y-auto no-scrollbar">
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-between p-4 bg-black/35 backdrop-blur-sm text-slate-100 select-none overflow-y-auto no-scrollbar">
       {/* Top security header */}
       <div className="w-full flex items-center justify-between pt-1 px-1">
         <div className="flex items-center gap-1.5 text-[10px] text-slate-500 bg-slate-900/80 px-2.5 py-1 rounded-full border border-slate-800">

@@ -67,3 +67,52 @@ img {
   animation: fadeIn 0.25s ease-out forwards;
 }
 
+/* Cloud Parallax Drift Keyframes */
+@keyframes driftCloudSlow {
+  0% { transform: translateX(-12%); }
+  50% { transform: translateX(12%); }
+  100% { transform: translateX(-12%); }
+}
+
+@keyframes driftCloudFast {
+  0% { transform: translateX(-20%); }
+  50% { transform: translateX(16%); }
+  100% { transform: translateX(-20%); }
+}
+
+.animate-cloud-slow {
+  animation: driftCloudSlow 90s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-cloud-fast {
+  animation: driftCloudFast 60s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Starlight Twinkle Keyframes */
+@keyframes starTwinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 0.95; transform: scale(1.15); }
+}
+
+.animate-twinkle-1 {
+  animation: starTwinkle 3.2s ease-in-out infinite;
+}
+.animate-twinkle-2 {
+  animation: starTwinkle 4.5s ease-in-out 1.2s infinite;
+}
+.animate-twinkle-3 {
+  animation: starTwinkle 2.8s ease-in-out 0.6s infinite;
+}
+
+/* Moon Halo Glow */
+@keyframes moonHalo {
+  0%, 100% { filter: drop-shadow(0 0 16px rgba(254, 240, 138, 0.45)); }
+  50% { filter: drop-shadow(0 0 28px rgba(254, 240, 138, 0.7)); }
+}
+
+.animate-moon-glow {
+  animation: moonHalo 6s ease-in-out infinite;
+}
+
