@@ -11,11 +11,14 @@ import {
   Smile,
   Star,
   Plus,
-  Film
+  Film,
+  ChevronUp
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
   fetchMessages,
+  fetchOlderMessages,
+  fetchMessagesDownToTarget,
   sendMessage,
   editMessage,
   sendViewOncePhoto,
@@ -87,6 +90,10 @@ export const ChatRoom: React.FC<Props> = ({
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
   const [showAttachMenu, setShowAttachMenu] = useState<boolean>(false);
 
+  // Pagination states (Load more older messages)
+  const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false);
+  const [isLoadingOlder, setIsLoadingOlder] = useState<boolean>(false);
+
   // Presence states
   const [partnerLastSeen, setPartnerLastSeen] = useState<string | null>(null);
   const [partnerIsOnline, setPartnerIsOnline] = useState<boolean>(false);
@@ -155,17 +162,17 @@ export const ChatRoom: React.FC<Props> = ({
     scrollToBottomDirect(!smooth);
   };
 
-  // Load all messages (loss chat) and sync to bottom reliably
+  // Load recent messages (35 messages for lightning-fast performance) and sync to bottom reliably
   useEffect(() => {
-    fetchMessages().then(data => {
+    fetchMessages(35).then(({ messages: data, hasMore }) => {
       setMessages(data);
+      setHasMoreMessages(hasMore);
       // Multi-pass initial scrolling prevents stopping in the middle due to late reflows
       scrollToBottomDirect(true);
       requestAnimationFrame(() => scrollToBottomDirect(true));
       setTimeout(() => scrollToBottomDirect(true), 60);
       setTimeout(() => scrollToBottomDirect(true), 180);
       setTimeout(() => scrollToBottomDirect(true), 400);
-      setTimeout(() => scrollToBottomDirect(true), 800);
     });
 
     // Check partner's last seen
@@ -309,8 +316,74 @@ export const ChatRoom: React.FC<Props> = ({
     });
   };
 
-  const handleJumpToMessage = (msgId: string) => {
+  // Load More Older Messages (Available for BOTH Soe and Haru)
+  const handleLoadMoreOlder = async () => {
+    if (isLoadingOlder || !hasMoreMessages || messages.length === 0) return;
+    const oldestId = messages[0].id;
+    setIsLoadingOlder(true);
+
+    const container = messagesContainerRef.current;
+    const prevScrollHeight = container ? container.scrollHeight : 0;
+    const prevScrollTop = container ? container.scrollTop : 0;
+
+    try {
+      const { messages: older, hasMore } = await fetchOlderMessages(oldestId, 35);
+      if (older.length > 0) {
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const filteredOlder = older.filter(m => !existingIds.has(m.id));
+          return [...filteredOlder, ...prev];
+        });
+        setHasMoreMessages(hasMore);
+
+        // Keep scroll position completely stable without jumping
+        requestAnimationFrame(() => {
+          if (container) {
+            const newScrollHeight = container.scrollHeight;
+            container.scrollTop = newScrollHeight - prevScrollHeight + prevScrollTop;
+          }
+        });
+      } else {
+        setHasMoreMessages(false);
+      }
+    } catch (err) {
+      console.error('Failed to load older messages:', err);
+    } finally {
+      setIsLoadingOlder(false);
+    }
+  };
+
+  // Jump to Starred Message with Auto-fetch (no manual load more needed!)
+  const handleJumpToMessage = async (msgId: string) => {
     setShowStarredModal(false);
+
+    const alreadyLoaded = messages.some(m => m.id === msgId);
+    if (alreadyLoaded) {
+      setTimeout(() => {
+        const el = document.getElementById('msg-' + msgId);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setHighlightedMsgId(msgId);
+          setTimeout(() => setHighlightedMsgId(null), 2500);
+        }
+      }, 80);
+      return;
+    }
+
+    // Auto-fetch down to the target starred message if older
+    const currentOldestId = messages.length > 0 ? messages[0].id : '0';
+    try {
+      const batch = await fetchMessagesDownToTarget(msgId, currentOldestId);
+      if (batch.length > 0) {
+        setMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const filtered = batch.filter(m => !existingIds.has(m.id));
+          return [...filtered, ...prev];
+        });
+      }
+    } catch (e) {
+      console.error('Auto-load jump error:', e);
+    }
 
     setTimeout(() => {
       const el = document.getElementById('msg-' + msgId);
@@ -319,7 +392,7 @@ export const ChatRoom: React.FC<Props> = ({
         setHighlightedMsgId(msgId);
         setTimeout(() => setHighlightedMsgId(null), 2500);
       }
-    }, 80);
+    }, 150);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -701,6 +774,34 @@ export const ChatRoom: React.FC<Props> = ({
         style={{ WebkitOverflowScrolling: 'touch', willChange: 'scroll-position' }}
         className="flex-1 overflow-y-auto p-3 space-y-2 no-scrollbar overscroll-contain touch-pan-y"
       >
+        {/* Load More Older Messages Button (Available for Both Soe and Haru) */}
+        {hasMoreMessages && (
+          <div className="flex justify-center py-2 mb-1">
+            <button
+              type="button"
+              onClick={handleLoadMoreOlder}
+              disabled={isLoadingOlder}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95 disabled:opacity-50 ${
+                isDay
+                  ? 'bg-white/95 hover:bg-white text-slate-700 border-slate-200/90 shadow-slate-200/50'
+                  : 'bg-slate-900/90 hover:bg-slate-800 text-slate-300 border-slate-800 shadow-black/40'
+              }`}
+            >
+              {isLoadingOlder ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                  <span>Memuat pesan sebelumnya...</span>
+                </>
+              ) : (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5" />
+                  <span>Muat pesan sebelumnya</span>
+                </>
+              )}
+            </button>
+          </div>
+        )}
+
         {messages.map((msg) => (
           <SwipeableMessageItem
             key={msg.id}

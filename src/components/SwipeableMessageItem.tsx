@@ -142,12 +142,6 @@ export const SwipeableMessageItem: React.FC<Props> = ({
 
       {!isMe && (
         <div className="flex items-center gap-1.5 ml-1.5 mb-0.5">
-          <img
-            src={msg.name === 'Soe' ? '/avatars/soe.jpg' : '/avatars/haru.jpg'}
-            alt={msg.name}
-            className="w-3.5 h-3.5 rounded-full object-cover border border-sky-300/80 shadow-2xs"
-            loading="lazy"
-          />
           <span
             className={`text-[9.5px] font-bold ${
               isDay ? 'text-slate-950 font-extrabold' : 'text-indigo-200'

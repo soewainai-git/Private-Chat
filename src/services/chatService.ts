@@ -64,37 +64,118 @@ export function parseRowToMessage(row: any): ChatMessage {
   };
 }
 
-export async function fetchMessages(): Promise<ChatMessage[]> {
+export async function fetchMessages(limit: number = 35): Promise<{ messages: ChatMessage[]; hasMore: boolean }> {
   const local = getLocalMessages();
   const supabase = getSupabase();
   if (!supabase) {
-    return local;
+    const sliced = local.slice(-limit);
+    return { messages: sliced, hasMore: local.length > sliced.length };
   }
 
   const tableName = getCommentsTableName();
 
   try {
-    // Loss chat: fetch all messages up to the beginning of the chat
     const { data, error } = await supabase
       .from(tableName)
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('id', { ascending: false })
+      .limit(limit + 1);
 
     if (error || !data) {
-      return local;
+      const sliced = local.slice(-limit);
+      return { messages: sliced, hasMore: local.length > sliced.length };
     }
 
-    const remoteMessages: ChatMessage[] = data
+    const hasMore = data.length > limit;
+    const rows = hasMore ? data.slice(0, limit) : data;
+
+    const remoteMessages: ChatMessage[] = rows
       .filter((row: any) => row.name === 'Soe' || row.name === 'Haru')
       .map(parseRowToMessage)
       .reverse();
 
-    // Supabase is the source of truth: sync full local cache!
+    // Cache to local storage
     saveLocalMessages(remoteMessages);
-    return remoteMessages;
+    return { messages: remoteMessages, hasMore };
   } catch (err) {
     console.warn('fetchMessages fallback to local:', err);
-    return local;
+    const sliced = local.slice(-limit);
+    return { messages: sliced, hasMore: local.length > sliced.length };
+  }
+}
+
+export async function fetchOlderMessages(beforeId: string, limit: number = 35): Promise<{ messages: ChatMessage[]; hasMore: boolean }> {
+  const supabase = getSupabase();
+  if (!supabase) {
+    return { messages: [], hasMore: false };
+  }
+
+  const tableName = getCommentsTableName();
+
+  try {
+    const numericId = Number(beforeId);
+    let query = supabase
+      .from(tableName)
+      .select('*')
+      .order('id', { ascending: false })
+      .limit(limit + 1);
+
+    if (!isNaN(numericId)) {
+      query = query.lt('id', numericId);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) {
+      return { messages: [], hasMore: false };
+    }
+
+    const hasMore = data.length > limit;
+    const rows = hasMore ? data.slice(0, limit) : data;
+
+    const olderMessages: ChatMessage[] = rows
+      .filter((row: any) => row.name === 'Soe' || row.name === 'Haru')
+      .map(parseRowToMessage)
+      .reverse();
+
+    return { messages: olderMessages, hasMore };
+  } catch (err) {
+    console.warn('fetchOlderMessages error:', err);
+    return { messages: [], hasMore: false };
+  }
+}
+
+export async function fetchMessagesDownToTarget(targetId: string, currentOldestId: string): Promise<ChatMessage[]> {
+  const supabase = getSupabase();
+  if (!supabase) return [];
+
+  const tableName = getCommentsTableName();
+  try {
+    const numTarget = Number(targetId);
+    const numOldest = Number(currentOldestId);
+
+    let query = supabase
+      .from(tableName)
+      .select('*')
+      .order('id', { ascending: false });
+
+    if (!isNaN(numOldest) && !isNaN(numTarget)) {
+      query = query.lt('id', numOldest).gte('id', numTarget);
+    } else {
+      query = query.limit(80);
+    }
+
+    const { data, error } = await query;
+    if (error || !data) return [];
+
+    const fetchedMessages: ChatMessage[] = data
+      .filter((row: any) => row.name === 'Soe' || row.name === 'Haru')
+      .map(parseRowToMessage)
+      .reverse();
+
+    return fetchedMessages;
+  } catch (err) {
+    console.warn('fetchMessagesDownToTarget error:', err);
+    return [];
   }
 }
 
