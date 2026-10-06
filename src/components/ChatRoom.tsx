@@ -13,7 +13,8 @@ import {
   Plus,
   Film,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Phone
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
@@ -34,6 +35,12 @@ import {
   getAvatarStorageUrl
 } from '../services/chatService';
 import {
+  initCallSignaling,
+  subscribeToCallState,
+  startCall,
+  CallSession
+} from '../services/callService';
+import {
   getNotificationPermission,
   requestNotificationPermission,
   showPartnerNotification
@@ -43,6 +50,7 @@ import { SwipeableMessageItem } from './SwipeableMessageItem';
 import { EmojiPicker } from './EmojiPicker';
 import { StarredMessagesModal } from './StarredMessagesModal';
 import { ProfileModal } from './ProfileModal';
+import { CallModal } from './CallModal';
 
 interface Props {
   currentUser: UserIdentity;
@@ -119,6 +127,27 @@ export const ChatRoom: React.FC<Props> = ({
   const [soeImgFailed, setSoeImgFailed] = useState<boolean>(false);
   const [haruImgFailed, setHaruImgFailed] = useState<boolean>(false);
   const [showProfileModal, setShowProfileModal] = useState<boolean>(false);
+
+  // Voice Call State (WebRTC P2P)
+  const [callSession, setCallSession] = useState<CallSession | null>(null);
+
+  useEffect(() => {
+    const cleanupSignaling = initCallSignaling(currentUser);
+    const unsubscribeState = subscribeToCallState(session => {
+      setCallSession(session);
+    });
+    return () => {
+      cleanupSignaling();
+      unsubscribeState();
+    };
+  }, [currentUser]);
+
+  const handleStartCall = async () => {
+    if (callSession && callSession.status !== 'idle' && callSession.status !== 'ended') {
+      return;
+    }
+    await startCall(currentUser, partnerName);
+  };
 
   const handleAvatarUpdated = (identity: UserIdentity, newUrl: string) => {
     if (identity === 'Soe') {
@@ -651,6 +680,21 @@ export const ChatRoom: React.FC<Props> = ({
 
         {/* Right Header Actions */}
         <div className="flex items-center gap-1.5">
+          {/* Voice Call Button (Available for Both Soe and Haru) */}
+          <button
+            type="button"
+            onClick={handleStartCall}
+            title={`Telepon ${partnerName}`}
+            aria-label="Panggilan Suara"
+            className={`w-7 h-7 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-95 ${
+              isDay
+                ? 'bg-white/85 hover:bg-white text-emerald-600 border border-emerald-200/80 shadow-xs'
+                : 'bg-slate-850 hover:bg-slate-800 text-emerald-400 border border-emerald-500/20'
+            }`}
+          >
+            <Phone className="w-3.5 h-3.5 text-emerald-500" />
+          </button>
+
           {/* Soe Exclusive: Starred Messages Button */}
           {currentUser === 'Soe' && (
             <button
@@ -1142,6 +1186,15 @@ export const ChatRoom: React.FC<Props> = ({
         haruAvatarUrl={haruImgFailed ? '' : haruAvatarUrl}
         onAvatarUpdated={handleAvatarUpdated}
         formatTime={formatTime}
+      />
+
+      {/* Voice Call Floating Pill & Screen */}
+      <CallModal
+        session={callSession}
+        currentUser={currentUser}
+        partnerName={partnerName}
+        partnerAvatarUrl={partnerName === 'Soe' ? soeAvatarUrl : haruAvatarUrl}
+        isDay={isDay}
       />
     </div>
   );
