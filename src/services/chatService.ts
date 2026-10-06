@@ -31,6 +31,39 @@ export function saveLocalMessages(messages: ChatMessage[]) {
   }
 }
 
+export function parseRowToMessage(row: any): ChatMessage {
+  let msgText = row.message || '';
+  let mediaUrl: string | null = null;
+  let mediaType: 'gif' | 'video' | null = null;
+
+  if (typeof msgText === 'string') {
+    if (msgText.startsWith('[MEDIA:gif]:')) {
+      mediaType = 'gif';
+      mediaUrl = msgText.slice('[MEDIA:gif]:'.length);
+      msgText = '';
+    } else if (msgText.startsWith('[MEDIA:video]:')) {
+      mediaType = 'video';
+      mediaUrl = msgText.slice('[MEDIA:video]:'.length);
+      msgText = '';
+    }
+  }
+
+  return {
+    id: String(row.id),
+    name: row.name as UserIdentity,
+    message: msgText,
+    viewonce_photo: row.viewonce_photo || null,
+    viewonce_opened: Boolean(row.viewonce_opened),
+    media_url: mediaUrl,
+    media_type: mediaType,
+    reply_name: row.reply_name || null,
+    reply_message: row.reply_message || null,
+    created_at: row.created_at || new Date().toISOString(),
+    is_edited: Boolean(row.is_edited),
+    edited_at: row.edited_at || undefined,
+  };
+}
+
 export async function fetchMessages(limitCount = 60, offset = 0): Promise<ChatMessage[]> {
   const local = getLocalMessages();
   const supabase = getSupabase();
@@ -53,18 +86,7 @@ export async function fetchMessages(limitCount = 60, offset = 0): Promise<ChatMe
 
     const remoteMessages: ChatMessage[] = data
       .filter((row: any) => row.name === 'Soe' || row.name === 'Haru')
-      .map((row: any) => ({
-        id: String(row.id),
-        name: row.name as UserIdentity,
-        message: row.message || '',
-        viewonce_photo: row.viewonce_photo || null,
-        viewonce_opened: Boolean(row.viewonce_opened),
-        reply_name: row.reply_name || null,
-        reply_message: row.reply_message || null,
-        created_at: row.created_at || new Date().toISOString(),
-        is_edited: Boolean(row.is_edited),
-        edited_at: row.edited_at || undefined,
-      }))
+      .map(parseRowToMessage)
       .reverse();
 
     // Supabase is the source of truth:
@@ -319,6 +341,135 @@ export async function editMessage(msgId: string, newMessage: string): Promise<bo
   return true;
 }
 
+export async function sendMediaMessage(
+  sender: UserIdentity,
+  file: File | Blob,
+  mediaType: 'gif' | 'video',
+  replyTo?: { name: string; message: string } | null
+): Promise<ChatMessage> {
+  const tempId = 'media-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6);
+
+  // Convert to base64 Data URL for instant local feedback
+  const base64Data = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  let finalMediaUrl = base64Data;
+  const ext = mediaType === 'gif' ? 'gif' : 'mp4';
+  const mime = mediaType === 'gif' ? 'image/gif' : (file.type || 'video/mp4');
+  const fileName = `soe_haru/media_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const { data: uploadData, error: uploadErr } = await supabase.storage
+        .from('photos')
+        .upload(fileName, file, {
+          contentType: mime,
+          upsert: true,
+        });
+
+      if (!uploadErr && uploadData?.path) {
+        const { data: publicUrlData } = supabase.storage
+          .from('photos')
+          .getPublicUrl(uploadData.path);
+        if (publicUrlData?.publicUrl) {
+          finalMediaUrl = publicUrlData.publicUrl;
+        }
+      }
+    } catch (err) {
+      console.warn('Media storage upload note, fallback to base64:', err);
+    }
+  }
+
+  const newMsg: ChatMessage = {
+    id: tempId,
+    name: sender,
+    message: '',
+    media_url: finalMediaUrl,
+    media_type: mediaType,
+    reply_name: replyTo?.name || null,
+    reply_message: replyTo?.message || null,
+    created_at: new Date().toISOString(),
+  };
+
+  // 1. Save locally
+  const current = getLocalMessages();
+  saveLocalMessages([...current, newMsg]);
+
+  // 2. Broadcast to other open tabs
+  if (broadcast) {
+    broadcast.postMessage({ type: 'NEW_MESSAGE', payload: newMsg, tabId: TAB_ID });
+  }
+
+  // 3. Supabase insert with media payload in message column
+  if (supabase) {
+    try {
+      const tableName = getCommentsTableName();
+      const dbPayload = `[MEDIA:${mediaType}]:${finalMediaUrl}`;
+      const { data, error } = await supabase
+        .from(tableName)
+        .insert({
+          name: sender,
+          message: dbPayload,
+          reply_name: replyTo?.name ?? null,
+          reply_message: replyTo?.message ?? null,
+          created_at: newMsg.created_at,
+        })
+        .select()
+        .single();
+
+      if (!error && data?.id) {
+        newMsg.id = String(data.id);
+        const latest = getLocalMessages().map(m => (m.id === tempId ? newMsg : m));
+        saveLocalMessages(latest);
+      }
+    } catch (err) {
+      console.warn('Supabase media insert skipped:', err);
+    }
+  }
+
+  return newMsg;
+}
+
+export async function unsendMessage(msgId: string): Promise<boolean> {
+  // 1. Remove from local messages
+  const current = getLocalMessages();
+  const filtered = current.filter(m => m.id !== msgId);
+  saveLocalMessages(filtered);
+
+  // 2. Broadcast via BroadcastChannel
+  if (broadcast) {
+    broadcast.postMessage({ type: 'UNSEND_MESSAGE', payload: { id: msgId }, tabId: TAB_ID });
+  }
+
+  // 3. Broadcast and delete on Supabase
+  const supabase = getSupabase();
+  if (supabase) {
+    try {
+      const tableName = getCommentsTableName();
+      const channel = supabase.channel(`soe-haru-isolated-${tableName}`);
+      channel.send({
+        type: 'broadcast',
+        event: 'unsend',
+        payload: { id: msgId },
+      });
+
+      await supabase
+        .from(tableName)
+        .delete()
+        .eq('id', msgId);
+    } catch (err) {
+      console.warn('Supabase unsend delete error:', err);
+    }
+  }
+
+  return true;
+}
+
 export async function sendHeartbeat(identity: UserIdentity): Promise<void> {
   const now = new Date().toISOString();
   if (identity === 'Soe') {
@@ -373,7 +524,8 @@ export function subscribeToChatEvents(
   onTyping: (payload: { sender: UserIdentity; isTyping: boolean }) => void,
   onPresenceUpdate: (identity: UserIdentity, timestamp: string) => void,
   onClearMessages?: () => void,
-  onMessageEdited?: (payload: { id: string; message: string; is_edited?: boolean; edited_at?: string }) => void
+  onMessageEdited?: (payload: { id: string; message: string; is_edited?: boolean; edited_at?: string }) => void,
+  onMessageDeleted?: (msgId: string) => void
 ) {
   const handleBroadcast = (e: MessageEvent) => {
     const { type, payload, tabId } = e.data || {};
@@ -385,6 +537,8 @@ export function subscribeToChatEvents(
       onPhotoOpened(payload.id);
     } else if (type === 'EDIT_MESSAGE' && payload?.id) {
       if (onMessageEdited) onMessageEdited(payload);
+    } else if ((type === 'UNSEND_MESSAGE' || type === 'DELETE_MESSAGE') && payload?.id) {
+      if (onMessageDeleted) onMessageDeleted(payload.id);
     } else if (type === 'TYPING' && payload) {
       onTyping(payload);
     } else if (type === 'HEARTBEAT' && payload) {
@@ -409,18 +563,7 @@ export function subscribeToChatEvents(
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: tableName }, (payload: any) => {
         const row = payload.new as any;
         if (row.name === 'Soe' || row.name === 'Haru') {
-          const msg: ChatMessage = {
-            id: String(row.id),
-            name: row.name,
-            message: row.message || '',
-            viewonce_photo: row.viewonce_photo || null,
-            viewonce_opened: Boolean(row.viewonce_opened),
-            reply_name: row.reply_name || null,
-            reply_message: row.reply_message || null,
-            created_at: row.created_at || new Date().toISOString(),
-            is_edited: Boolean(row.is_edited),
-            edited_at: row.edited_at || undefined,
-          };
+          const msg = parseRowToMessage(row);
           onNewMessage(msg);
         }
       })
@@ -438,10 +581,19 @@ export function subscribeToChatEvents(
           });
         }
       })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: tableName }, () => {
-        saveLocalMessages([]);
-        if (onClearMessages) {
-          onClearMessages();
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: tableName }, (payload: any) => {
+        if (payload.old?.id && onMessageDeleted) {
+          onMessageDeleted(String(payload.old.id));
+        } else {
+          saveLocalMessages([]);
+          if (onClearMessages) {
+            onClearMessages();
+          }
+        }
+      })
+      .on('broadcast', { event: 'unsend' }, ({ payload }: any) => {
+        if (payload?.id && onMessageDeleted) {
+          onMessageDeleted(String(payload.id));
         }
       })
       .on('broadcast', { event: 'typing' }, ({ payload }: any) => {

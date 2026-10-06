@@ -6,6 +6,8 @@ export interface ChatMessage {
   message: string;
   viewonce_photo?: string | null;
   viewonce_opened?: boolean;
+  media_url?: string | null;
+  media_type?: 'gif' | 'video' | null;
   reply_name?: string | null;
   reply_message?: string | null;
   created_at: string;

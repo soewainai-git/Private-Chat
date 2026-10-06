@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { CheckCheck, CornerUpLeft, Pencil, Copy, Check, MoreVertical, X, Star } from 'lucide-react';
+import { CheckCheck, CornerUpLeft, Pencil, Copy, Check, MoreVertical, X, Star, Undo2 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 
 interface Props {
@@ -10,11 +10,13 @@ interface Props {
   isDay?: boolean;
   isStarred?: boolean;
   canStar?: boolean;
+  canUnsend?: boolean;
   isHighlighted?: boolean;
   onReply: (msg: ChatMessage) => void;
   onEdit: (msg: ChatMessage) => void;
   onOpenViewOnce: (msg: ChatMessage) => void;
   onToggleStar?: (msg: ChatMessage) => void;
+  onUnsend?: (msg: ChatMessage) => void;
 }
 
 export const SwipeableMessageItem: React.FC<Props> = ({
@@ -25,13 +27,16 @@ export const SwipeableMessageItem: React.FC<Props> = ({
   isDay = true,
   isStarred = false,
   canStar = false,
+  canUnsend = false,
   isHighlighted = false,
   onReply,
   onEdit,
   onOpenViewOnce,
   onToggleStar,
+  onUnsend,
 }) => {
   const isViewOnce = Boolean(msg.viewonce_photo);
+  const isMedia = Boolean(msg.media_url);
   const [translateX, setTranslateX] = useState(0);
   const [isSwiping, setIsSwiping] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
@@ -228,6 +233,81 @@ export const SwipeableMessageItem: React.FC<Props> = ({
               </p>
             </div>
           </div>
+        ) : isMedia && msg.media_url ? (
+          /* GIF / Looping Video Message Bubble - Large & Clean Cute Box */
+          <div
+            onDoubleClick={() => onReply(msg)}
+            className={`relative p-1.5 rounded-[22px] max-w-[270px] sm:max-w-[320px] transition-all shadow-md active:scale-[0.99] ${
+              isMe
+                ? 'bg-gradient-to-tr from-[#3b82f6] to-[#60a5fa] text-white rounded-br-[4px] shadow-[0_3px_12px_rgba(59,130,246,0.25)]'
+                : isDay
+                ? 'bg-white/98 text-[#0f172a] rounded-bl-[4px] border border-sky-100 shadow-[0_3px_12px_rgba(0,0,0,0.08)] backdrop-blur-md'
+                : 'bg-[#18233c]/95 text-slate-100 rounded-bl-[4px] border border-slate-700/60 shadow-[0_3px_12px_rgba(0,0,0,0.25)] backdrop-blur-md'
+            }`}
+          >
+            {/* Quoted Reply if present */}
+            {msg.reply_name && (
+              <div
+                className={`mb-1 px-2.5 py-1 rounded-xl text-[10px] border-l-2 max-w-[240px] sm:max-w-xs overflow-hidden ${
+                  isMe
+                    ? 'bg-blue-700/60 border-blue-200 text-blue-50'
+                    : isDay
+                    ? 'bg-sky-50 border-sky-400 text-slate-800'
+                    : 'bg-slate-900/80 border-indigo-400 text-slate-200'
+                }`}
+              >
+                <p className="font-bold text-[9px] opacity-90 truncate">{msg.reply_name}</p>
+                <p className="text-[10px] opacity-85 truncate max-w-full font-normal">{msg.reply_message}</p>
+              </div>
+            )}
+
+            {/* Media Content Box: Auto-Looping, Muted, No Controls */}
+            <div className="relative rounded-[18px] overflow-hidden bg-slate-950/20 w-full flex items-center justify-center">
+              {msg.media_type === 'video' ? (
+                <video
+                  src={msg.media_url}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  className="w-full max-h-[380px] object-cover rounded-[18px] pointer-events-none select-none block"
+                />
+              ) : (
+                <img
+                  src={msg.media_url}
+                  alt="GIF"
+                  className="w-full max-h-[380px] object-cover rounded-[18px] pointer-events-none select-none block"
+                  loading="lazy"
+                />
+              )}
+              {/* Cute GIF Label */}
+              <span className="absolute top-2 right-2 px-1.5 py-0.5 rounded-full bg-black/60 backdrop-blur-xs text-[9px] font-bold text-white tracking-wider pointer-events-none">
+                GIF
+              </span>
+            </div>
+
+            {/* Optional Caption */}
+            {msg.message && (
+              <p className={`px-2 pt-1.5 text-[12px] leading-relaxed whitespace-pre-wrap select-text font-normal ${
+                isMe ? 'text-white font-medium' : isDay ? 'text-[#0f172a] font-medium' : 'text-slate-100 font-normal'
+              }`}>
+                {msg.message}
+              </p>
+            )}
+
+            {/* Timestamp & Star */}
+            <div
+              className={`px-1.5 pt-1 text-[8.5px] text-right opacity-80 flex items-center justify-end gap-1 ${
+                isMe ? 'text-blue-100' : isDay ? 'text-slate-500 font-medium' : 'text-slate-400'
+              }`}
+            >
+              {isStarred && (
+                <span className="text-amber-400 text-[9px] leading-none" title="Pesan Berbintang">⭐</span>
+              )}
+              <span>{formatTime(msg.created_at)}</span>
+              {isMe && <CheckCheck className="w-2.5 h-2.5 inline" />}
+            </div>
+          </div>
         ) : (
           /* Normal Text Message Bubble - Soft Cute Pillowy Design */
           <div
@@ -341,8 +421,25 @@ export const SwipeableMessageItem: React.FC<Props> = ({
               </button>
             )}
 
+            {/* Unsend Option (Exclusive to Soe only) */}
+            {canUnsend && onUnsend && (
+              <button
+                type="button"
+                onClick={() => {
+                  setShowMenu(false);
+                  if (window.confirm('Tarik pesan ini? Pesan akan dihapus untuk semua orang.')) {
+                    onUnsend(msg);
+                  }
+                }}
+                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs text-rose-400 hover:bg-rose-950/40 rounded-xl transition-colors cursor-pointer text-left font-medium"
+              >
+                <Undo2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>Tarik Pesan (Unsend)</span>
+              </button>
+            )}
+
             {/* Edit Option (Only available for text messages sent by current user) */}
-            {isMe && !isViewOnce && (
+            {isMe && !isViewOnce && !isMedia && (
               <button
                 type="button"
                 onClick={() => {

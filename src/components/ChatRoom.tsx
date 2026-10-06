@@ -9,7 +9,9 @@ import {
   Pencil,
   Check,
   Smile,
-  Star
+  Star,
+  Plus,
+  Film
 } from 'lucide-react';
 import { ChatMessage, UserIdentity } from '../types/chat';
 import {
@@ -17,6 +19,8 @@ import {
   sendMessage,
   editMessage,
   sendViewOncePhoto,
+  sendMediaMessage,
+  unsendMessage,
   markViewOnceOpened,
   sendHeartbeat,
   fetchLastSeen,
@@ -79,6 +83,7 @@ export const ChatRoom: React.FC<Props> = ({
   });
   const [showStarredModal, setShowStarredModal] = useState<boolean>(false);
   const [highlightedMsgId, setHighlightedMsgId] = useState<string | null>(null);
+  const [showAttachMenu, setShowAttachMenu] = useState<boolean>(false);
 
   // Soe Exclusive: Load More Messages State
   const [loadingMore, setLoadingMore] = useState<boolean>(false);
@@ -91,7 +96,8 @@ export const ChatRoom: React.FC<Props> = ({
   const [showSecurityInfo, setShowSecurityInfo] = useState<boolean>(false);
   const [notifPermission, setNotifPermission] = useState<NotificationPermission>(() => getNotificationPermission());
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const fileInputPhotoRef = useRef<HTMLInputElement>(null);
+  const fileInputMediaRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const partnerName: UserIdentity = currentUser === 'Soe' ? 'Haru' : 'Soe';
@@ -202,6 +208,10 @@ export const ChatRoom: React.FC<Props> = ({
               : m
           )
         );
+      },
+      (deletedMsgId) => {
+        setMessages(prev => prev.filter(m => m.id !== deletedMsgId));
+        handleUnstarById(deletedMsgId);
       }
     );
 
@@ -369,6 +379,67 @@ export const ChatRoom: React.FC<Props> = ({
     };
     reader.readAsDataURL(file);
     e.target.value = '';
+  };
+
+  // Send GIF or Looping Short Video (<20s)
+  const handleMediaSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setShowAttachMenu(false);
+
+    const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
+    const isVideo = file.type.startsWith('video/') || /\.(mp4|webm|mov|m4v)$/i.test(file.name);
+
+    if (!isGif && !isVideo) {
+      alert('Format file tidak didukung. Pilih file GIF atau Video (MP4/WebM).');
+      e.target.value = '';
+      return;
+    }
+
+    if (isGif) {
+      sendMediaMessage(currentUser, file, 'gif', replyTo).then(sent => {
+        setReplyTo(null);
+        setMessages(prev => (prev.some(m => m.id === sent.id) ? prev : [...prev, sent]));
+        setTimeout(() => scrollToBottom(true), 40);
+      });
+      e.target.value = '';
+      return;
+    }
+
+    // Video validation: duration <= 20 seconds
+    const videoObj = document.createElement('video');
+    videoObj.preload = 'metadata';
+    const blobUrl = URL.createObjectURL(file);
+    videoObj.src = blobUrl;
+
+    videoObj.onloadedmetadata = () => {
+      URL.revokeObjectURL(blobUrl);
+      const duration = videoObj.duration;
+      if (duration > 20.5) {
+        alert('Durasi video melebihi batas! Maksimal 20 detik agar otomatis looping seperti GIF.');
+        return;
+      }
+      sendMediaMessage(currentUser, file, 'video', replyTo).then(sent => {
+        setReplyTo(null);
+        setMessages(prev => (prev.some(m => m.id === sent.id) ? prev : [...prev, sent]));
+        setTimeout(() => scrollToBottom(true), 40);
+      });
+    };
+
+    videoObj.onerror = () => {
+      URL.revokeObjectURL(blobUrl);
+      alert('Gagal memuat video. Pastikan format video valid.');
+    };
+
+    e.target.value = '';
+  };
+
+  // Soe Exclusive Unsend Handler
+  const handleUnsend = async (targetMsg: ChatMessage) => {
+    setMessages(prev => prev.filter(m => m.id !== targetMsg.id));
+    handleUnstarById(targetMsg.id);
+    await unsendMessage(targetMsg.id);
   };
 
   const handleOpenViewOnce = (msg: ChatMessage) => {
@@ -623,8 +694,10 @@ export const ChatRoom: React.FC<Props> = ({
             isDay={isDay}
             isStarred={starredMsgIds.includes(msg.id)}
             canStar={currentUser === 'Soe'}
+            canUnsend={currentUser === 'Soe'}
             isHighlighted={highlightedMsgId === msg.id}
             onToggleStar={handleToggleStar}
+            onUnsend={handleUnsend}
             onReply={(targetMsg) => {
               setReplyTo({
                 name: targetMsg.name,
@@ -750,15 +823,92 @@ export const ChatRoom: React.FC<Props> = ({
       >
         <form onSubmit={handleSendMessage} className="flex items-center gap-1.5">
           <input
-            ref={fileInputRef}
+            ref={fileInputPhotoRef}
             type="file"
             accept="image/*"
             onChange={handlePhotoSelect}
             className="hidden"
           />
 
-          {/* Dynamic Left Button: Transforms to Emoji when typing, Camera when empty */}
-          {inputText.length > 0 ? (
+          <input
+            ref={fileInputMediaRef}
+            type="file"
+            accept="image/gif,video/mp4,video/webm,video/quicktime,video/*"
+            onChange={handleMediaSelect}
+            className="hidden"
+          />
+
+          {/* Left Button Group: [+] Button with 2 Options Popover */}
+          <div className="relative flex items-center flex-none">
+            <button
+              type="button"
+              onClick={() => setShowAttachMenu(prev => !prev)}
+              title="Lampirkan Foto atau GIF"
+              aria-label="Lampirkan Media"
+              className={`w-8 h-8 rounded-full flex items-center justify-center border transition-all active:scale-95 cursor-pointer ${
+                showAttachMenu
+                  ? 'rotate-45 bg-blue-600 text-white border-blue-500 shadow-sm'
+                  : isDay
+                  ? 'bg-white/90 hover:bg-white text-slate-700 border-sky-200/80 shadow-xs'
+                  : 'bg-slate-850 hover:bg-slate-800 text-slate-300 border-slate-750'
+              }`}
+            >
+              <Plus className="w-4 h-4 transition-transform duration-200" />
+            </button>
+
+            {/* 2-Option Popover Menu (Foto 1X & GIF/Video) */}
+            {showAttachMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowAttachMenu(false)}
+                />
+                <div
+                  className={`absolute bottom-11 left-0 z-50 flex items-center gap-1.5 p-1 rounded-2xl shadow-xl backdrop-blur-md border animate-pop-in ${
+                    isDay
+                      ? 'bg-white/95 border-sky-200/90 shadow-sky-500/15 text-slate-800'
+                      : 'bg-[#0f172a]/95 border-slate-700 shadow-black/60 text-slate-100'
+                  }`}
+                >
+                  {/* Option 1: Kirim Foto 1X */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAttachMenu(false);
+                      fileInputPhotoRef.current?.click();
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-blue-500/10 active:scale-95 transition-all text-xs font-semibold cursor-pointer whitespace-nowrap"
+                  >
+                    <div className="relative flex items-center justify-center">
+                      <Camera className="w-4 h-4 text-blue-500" />
+                      <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-blue-600 text-white font-bold text-[7px] flex items-center justify-center">
+                        1
+                      </span>
+                    </div>
+                    <span className="text-[11px]">Foto 1X</span>
+                  </button>
+
+                  <div className={`w-[1px] h-5 ${isDay ? 'bg-slate-200' : 'bg-slate-700'}`} />
+
+                  {/* Option 2: Kirim GIF / Video (<20s) */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAttachMenu(false);
+                      fileInputMediaRef.current?.click();
+                    }}
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl hover:bg-amber-500/10 active:scale-95 transition-all text-xs font-semibold cursor-pointer whitespace-nowrap"
+                  >
+                    <Film className="w-4 h-4 text-amber-500" />
+                    <span className="text-[11px]">GIF / Video</span>
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Dynamic Emoji Button: appears when typing */}
+          {inputText.length > 0 && (
             <button
               type="button"
               onClick={() => setShowEmojiPicker(prev => !prev)}
@@ -772,22 +922,6 @@ export const ChatRoom: React.FC<Props> = ({
               }`}
             >
               <Smile className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              title="Kirim Foto Sekali Lihat (1X)"
-              className={`w-8 h-8 rounded-full flex items-center justify-center border transition-transform active:scale-95 cursor-pointer flex-none relative ${
-                isDay
-                  ? 'bg-white/90 hover:bg-white text-slate-700 border-sky-200/80 shadow-xs'
-                  : 'bg-slate-850 hover:bg-slate-800 text-slate-300 border-slate-750'
-              }`}
-            >
-              <Camera className="w-3.5 h-3.5" />
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full bg-blue-600 text-white font-bold text-[8px] flex items-center justify-center border border-white">
-                1
-              </span>
             </button>
           )}
 
