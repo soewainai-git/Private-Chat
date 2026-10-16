@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+@layer utilities {
+  /* Hide scrollbar for Chrome, Safari and Opera */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hide scrollbar for IE, Edge and Firefox */
+  .no-scrollbar {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+}
+
+/* Custom dark scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: #0b0f17;
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Anti-Screenshot & Privacy Shield filter */
+.privacy-blurred {
+  filter: blur(28px) grayscale(80%) brightness(30%);
+  pointer-events: none !important;
+  user-select: none !important;
+  transition: filter 0.15s ease-out;
+}
+
+/* Mobile viewport height adjustments */
+.h-dvh-custom {
+  height: 100dvh;
+}
+
+/* Prevent image dragging */
+img {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  pointer-events: auto;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%, 60% { transform: translateX(-8px); }
+  40%, 80% { transform: translateX(8px); }
+}
+.animate-shake {
+  animation: shake 0.4s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.25s ease-out forwards;
+}
+
+/* Cute Bouncy Bubble Pop-In Keyframes */
+@keyframes popIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.85) translateY(10px);
+  }
+  65% {
+    transform: scale(1.02) translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-pop-in {
+  animation: popIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+/* Starred Jump Target Highlight Pulse */
+@keyframes highlightPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(245, 158, 11, 0.55);
+  }
+}
+
+.animate-highlight-pulse {
+  animation: highlightPulse 1.2s ease-in-out 2;
+}
+
+/* Cloud Parallax Drift Keyframes */
+@keyframes driftCloudSlow {
+  0% { transform: translateX(-12%); }
+  50% { transform: translateX(12%); }
+  100% { transform: translateX(-12%); }
+}
+
+@keyframes driftCloudFast {
+  0% { transform: translateX(-20%); }
+  50% { transform: translateX(16%); }
+  100% { transform: translateX(-20%); }
+}
+
+.animate-cloud-slow {
+  animation: driftCloudSlow 90s ease-in-out infinite;
+  will-change: transform;
+}
+
+.animate-cloud-fast {
+  animation: driftCloudFast 60s ease-in-out infinite;
+  will-change: transform;
+}
+
+/* Starlight Twinkle Keyframes */
+@keyframes starTwinkle {
+  0%, 100% { opacity: 0.25; transform: scale(0.85); }
+  50% { opacity: 0.95; transform: scale(1.15); }
+}
+
+.animate-twinkle-1 {
+  animation: starTwinkle 3.2s ease-in-out infinite;
+}
+.animate-twinkle-2 {
+  animation: starTwinkle 4.5s ease-in-out 1.2s infinite;
+}
+.animate-twinkle-3 {
+  animation: starTwinkle 2.8s ease-in-out 0.6s infinite;
+}
+
+/* Moon Halo Glow */
+@keyframes moonHalo {
+  0%, 100% { filter: drop-shadow(0 0 16px rgba(254, 240, 138, 0.45)); }
+  50% { filter: drop-shadow(0 0 28px rgba(254, 240, 138, 0.7)); }
+}
+
+.animate-moon-glow {
+  animation: moonHalo 6s ease-in-out infinite;
+}
+
