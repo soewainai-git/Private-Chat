@@ -1,0 +1,66 @@
+import React, { useState } from 'react';
+import { UserIdentity } from './types/chat';
+import { DesktopGuard } from './components/DesktopGuard';
+import { PinGate } from './components/PinGate';
+import { ChatRoom } from './components/ChatRoom';
+import { usePrivacyShield } from './hooks/usePrivacyShield';
+import { PrivacyShieldOverlay } from './components/PrivacyShieldOverlay';
+import { PWAInstallBanner } from './components/PWAInstallBanner';
+import { SkyBackground } from './components/SkyBackground';
+
+export default function App() {
+  const [currentUser] = useState<UserIdentity | null>(() => {
+    try {
+      sessionStorage.clear();
+      localStorage.removeItem('soe_haru_active_user');
+    } catch {}
+    return null;
+  });
+
+  // Anti-Screenshot & Privacy Shield Hook
+  const {
+    isVeiled,
+    warningMessage,
+    triggerPrivacyAlert,
+  } = usePrivacyShield(true);
+
+  const handleUnlock = () => {
+    // Access locked due to server downtime
+  };
+
+  const handleLock = () => {
+    try {
+      sessionStorage.clear();
+    } catch {}
+  };
+
+  return (
+    <DesktopGuard>
+      <div className="fixed inset-0 w-full h-[100dvh] max-h-[100dvh] text-slate-100 flex flex-col overflow-hidden select-none bg-transparent">
+        {/* Dynamic Day/Night Living Sky Atmosphere - 100% Automatic Timezone */}
+        <SkyBackground />
+
+        {/* Anti-Screenshot Privacy Overlay */}
+        <PrivacyShieldOverlay
+          isVeiled={isVeiled}
+          warningMessage={warningMessage}
+        />
+
+        {/* PWA Install Banner */}
+        <PWAInstallBanner />
+
+        {currentUser ? (
+          <ChatRoom
+            currentUser={currentUser}
+            onLock={handleLock}
+            triggerPrivacyAlert={triggerPrivacyAlert}
+          />
+        ) : (
+          <PinGate
+            onUnlock={handleUnlock}
+          />
+        )}
+      </div>
+    </DesktopGuard>
+  );
+}
